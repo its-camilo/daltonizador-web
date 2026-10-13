@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Daltonizador GLSL — WebGL2 Fase A</title>
-<link rel="stylesheet" href="style.css?v=7" />
+<link rel="stylesheet" href="style.css?v=8" />
 </head>
 <body>
 <header>
@@ -29,6 +29,7 @@
 
     <button id="btnTest" class="primary">◉ Hacer test Ishihara (14 láminas)</button>
     <p class="hint">El test calcula tu tipo e intensidad y arma tu preset propio.</p>
+    <button id="btnShaders">▤ Ver shaders GLSL actuales</button>
 
     <label>Preset de configuración
       <select id="preset"></select>
@@ -95,10 +96,24 @@
   </div>
 </div>
 
-<script src="diagram.js?v=7"></script>
-<script src="presets.js?v=7"></script>
-<script src="ishihara.js?v=7"></script>
-<script src="main.js?v=7"></script>
+<div id="shOverlay" class="overlay" hidden>
+  <div class="sheet wide" role="dialog" aria-label="Shaders GLSL actuales">
+    <h2>Shaders GLSL en uso <span class="tag">GLSL ES 3.00</span></h2>
+    <p class="hint">Fuente exacta que compilo WebGL2: archivos .vert/.frag o respaldo embebido en file://.</p>
+    <h3>Vertex <button id="shCopyVert">Copiar</button></h3>
+    <pre><code id="shVert"></code></pre>
+    <h3>Fragment <button id="shCopyFrag">Copiar</button></h3>
+    <pre><code id="shFrag"></code></pre>
+    <div class="row">
+      <button id="shClose" class="primary">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script src="diagram.js?v=8"></script>
+<script src="presets.js?v=8"></script>
+<script src="ishihara.js?v=8"></script>
+<script src="main.js?v=8"></script>
 <script>
   document.querySelectorAll('[data-sev]').forEach(function (b) {
     b.addEventListener('click', function () {

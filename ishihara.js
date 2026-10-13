@@ -48,6 +48,132 @@
     ctx.fill();
   }
 
+  // Especificacion de figura por lamina. Misma fuente para dibujar y plantillas.
+  function figureSpec(plate, W) {
+    const cx = W / 2, cy = W / 2;
+    const rev = !!plate.rev;
+    if (plate.kind === 'num2') {
+      return {
+        font: 'bold 120px sans-serif',
+        slots: [{ x: cx - 52, y: cy + 4 }, { x: cx + 52, y: cy + 4 }],
+        figColors: ['#3f7f6e', '#8c3d30'],
+        bg: ['#7fae6e', '#8fae7a', '#6f9e63', '#93b06a'],
+        bgBase: '#7fae6e'
+      };
+    }
+    const size = plate.fig.length > 1 ? 150 : 190;
+    return {
+      font: 'bold ' + size + 'px sans-serif',
+      slots: [{ x: cx, y: cy + 6 }],
+      figColors: [rev ? '#3f6b4f' : '#a8622f'],
+      bg: rev ? ['#a5714f', '#96613f', '#b3805c', '#8a5638'] : ['#7fae6e', '#8fae7a', '#6f9e63', '#93b06a'],
+      bgBase: rev ? '#a5714f' : '#7fae6e'
+    };
+  }
+
+  // Dibuja textos en máscara offscreen. Devuelve ImageData.
+  function textMask(W, font, draws) {
+    const c = document.createElement('canvas');
+    c.width = W; c.height = W;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.fillStyle = '#000';
+    x.fillRect(0, 0, W, W);
+    x.fillStyle = '#fff';
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.font = font;
+    draws.forEach(function (d) { x.fillText(d.text, d.x, d.y); });
+    return x.getImageData(0, 0, W, W);
+  }
+
+  function maskHit(mask, W, x, y) {
+    const xi = Math.max(0, Math.min(W - 1, x | 0));
+    const yi = Math.max(0, Math.min(W - 1, y | 0));
+    return mask.data[(yi * W + xi) * 4 + 3] > 110;
+  }
+
+  // Puntos de plantilla para un candidato. draws: lista {text,x,y}.
+  function templatePoints(W, font, draws) {
+    const mask = textMask(W, font, draws);
+    const pts = [];
+    for (let y = 0; y < W; y += 5) {
+      for (let x = 0; x < W; x += 5) {
+        if (maskHit(mask, W, x, y)) pts.push([x, y]);
+      }
+    }
+    return pts;
+  }
+
+  // Candidatos de respuesta por lamina. El dibujo se compara con cada uno.
+  function plateCandidates(plate) {
+    if (plate.kind === 'num2') return [plate.normal, plate.protan, plate.deutan];
+    if (plate.rev) return ['2'];
+    const out = [];
+    if (plate.normal) out.push(plate.normal);
+    if (plate.rg && plate.rg !== plate.normal) out.push(plate.rg);
+    return out.length ? out : [plate.fig];
+  }
+
+  // Convierte candidato a draws sobre los slots de la figura.
+  function candidateDraws(plate, W, cand) {
+    const spec = figureSpec(plate, W);
+    if (plate.kind === 'num2') {
+      if (cand.length === 2) {
+        return [{ text: cand[0], x: spec.slots[0].x, y: spec.slots[0].y },
+                { text: cand[1], x: spec.slots[1].x, y: spec.slots[1].y }];
+      }
+      const si = Math.max(0, plate.fig.indexOf(cand));
+      const slot = spec.slots[Math.min(si, spec.slots.length - 1)];
+      return [{ text: cand, x: slot.x, y: slot.y }];
+    }
+    return [{ text: cand, x: spec.slots[0].x, y: spec.slots[0].y }];
+  }
+
+  function flatStrokes(strokes) {
+    const out = [];
+    strokes.forEach(function (st) { st.forEach(function (p) { out.push(p); }); });
+    return out;
+  }
+
+  function coverageOf(A, B, tol) {
+    if (!A.length || !B.length) return 0;
+    let hit = 0;
+    for (let i = 0; i < A.length; i++) {
+      const a = A[i];
+      for (let j = 0; j < B.length; j++) {
+        const dx = a[0] - B[j][0], dy = a[1] - B[j][1];
+        if (dx * dx + dy * dy < tol * tol) { hit++; break; }
+      }
+    }
+    return hit / A.length;
+  }
+
+  // Reconoce el numero dibujado por comparacion con plantillas.
+  // Devuelve el candidato ('8', '70', 'noveo', ...) o null si no hay dibujo.
+  window.scoreDrawnNumber = function (plateId, strokes, S) {
+    const use = strokes.filter(function (st) { return st.length >= 4; });
+    let n = 0;
+    use.forEach(function (st) { n += st.length; });
+    if (!use.length || n < 6) return null;
+    const W = 420;
+    const plate = window.ISHIHARA_PLATES.filter(function (p) { return p.id === plateId; })[0];
+    if (!plate) return null;
+    const spec = figureSpec(plate, W);
+    const flat = flatStrokes(use);
+    const tol = 14;
+    const cands = plateCandidates(plate);
+    let best = 'noveo', bestF1 = 0;
+    cands.forEach(function (cand) {
+      const T = templatePoints(W, spec.font, candidateDraws(plate, W, cand));
+      const rec = coverageOf(T, flat, tol);
+      const prec = coverageOf(flat, T, tol);
+      const f1 = (rec + prec) > 0 ? 2 * rec * prec / (rec + prec) : 0;
+      if (f1 > bestF1) { bestF1 = f1; best = cand; }
+    });
+    if (bestF1 < 0.30) return 'noveo';
+    return best;
+  };
+
   function dotField(ctx, cx, cy, r, R, n, palette) {
     for (let i = 0; i < n; i++) {
       const a = R() * Math.PI * 2;
@@ -172,34 +298,33 @@
       drawTracePaths(ctx, 14, W, R);
       ctx.restore();
     } else {
-      const bg = plate.rev ? ['#a5714f', '#96613f', '#b3805c', '#8a5638'] : ['#7fae6e', '#8fae7a', '#6f9e63', '#93b06a'];
-      const fg = plate.rev ? '#3f6b4f' : '#b06a35';
-      const fg2 = '#8c3d30';
+      // Lamina numerica DIFICIL: figura solo con puntos, sin relleno solido.
+      // Cada punto cae en figura o fondo segun la mascara del texto.
+      const spec = figureSpec(plate, W);
+      const fullDraws = plate.fig.split('').map(function (ch, i) {
+        const s = spec.slots[Math.min(i, spec.slots.length - 1)];
+        return { text: ch, x: s.x, y: s.y };
+      });
+      const figMask = textMask(W, spec.font, fullDraws);
       ctx.save();
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
-      ctx.fillStyle = bg[0]; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-      dotField(ctx, cx, cy, r, R, 850, bg);
-      ctx.fillStyle = fg;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      if (plate.kind === 'num2') {
-        // Dos tonos aproximados. Uno por digito para protan/deutan fuerte.
-        ctx.font = 'bold 120px sans-serif';
-        ctx.fillStyle = '#3f7f6e';
-        ctx.fillText(plate.fig[0], cx - 52, cy + 4);
-        ctx.fillStyle = fg2;
-        ctx.fillText(plate.fig[1], cx + 52, cy + 4);
-        ctx.fillStyle = 'rgba(63,127,110,0.4)';
-        for (let i = 0; i < 90; i++) disc(ctx, cx - 95 + R() * 90, cy - 70 + R() * 140, 2 + R() * 3, 'rgba(63,127,110,0.5)');
-        ctx.fillStyle = 'rgba(140,61,48,0.4)';
-        for (let i = 0; i < 90; i++) disc(ctx, cx + 5 + R() * 90, cy - 70 + R() * 140, 2 + R() * 3, 'rgba(140,61,48,0.5)');
-      } else {
-        const size = plate.fig.length > 1 ? 150 : 190;
-        ctx.font = 'bold ' + size + 'px sans-serif';
-        ctx.fillText(plate.fig, cx, cy + 6);
-        ctx.globalAlpha = 0.4;
-        for (let i = 0; i < 200; i++) disc(ctx, cx - 110 + R() * 220, cy - 90 + R() * 180, 2 + R() * 3, fg);
-        ctx.globalAlpha = 1;
+      ctx.fillStyle = spec.bgBase; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+      const ND = 2600;
+      for (let i = 0; i < ND; i++) {
+        const a = R() * Math.PI * 2;
+        const d = Math.sqrt(R()) * (r - 4);
+        const px = cx + Math.cos(a) * d, py = cy + Math.sin(a) * d;
+        let col = spec.bg[(R() * spec.bg.length) | 0];
+        if (maskHit(figMask, W, px, py)) {
+          // Identifica digito para bicolor en num2.
+          let slot = 0;
+          if (plate.kind === 'num2') slot = (px < cx) ? 0 : 1;
+          col = spec.figColors[slot];
+          if (R() < 0.25) col = spec.bg[(R() * spec.bg.length) | 0]; // ruido
+        } else if (R() < 0.04) {
+          col = spec.figColors[(R() * spec.figColors.length) | 0]; // señuelo
+        }
+        disc(ctx, px, py, 2.5 + R() * 4.5, col);
       }
       ctx.restore();
     }

@@ -18,7 +18,7 @@ Host en `main.js` con WebGL2 directo.
 - `shaders/daltonizador.frag` — `srgb2lin` exacta, LMS Bradford, proyectores Brettel 1997, severidad Machado 0-1, preserva Y, `lin2srgb` exacta.
 - `diagram.js` — imagen de prueba por código. Gradientes, rampa gris, parches, par rojo-verde vulnerable 1.28:1, par azul-amarillo seguro, placas tipo Ishihara.
 - `presets.js` — 3 presets fijos al 100%: protan, deutan, tritan.
-- `ishihara.js` — test de 14 láminas generadas por código (aproximación educativa, no oficiales Kanehara). Calcula tipo e intensidad y arma el preset propio.
+- `ishihara.js` — test de 14 láminas generadas por código (aproximación educativa, no oficiales Kanehara). Figuras solo con puntos, sin relleno, para mayor dificultad. Números y trazos se dibujan con mouse o dedo: los dígitos se reconocen por plantillas y los trazos por cercanía a cada camino. Calcula tipo e intensidad y arma el preset propio.
 
 ## Uso
 
@@ -37,7 +37,8 @@ python3 -m http.server 8000
 Controles:
 
 - Botón ON/OFF + tecla `F` local. Sin tecla global del SO.
-- Test Ishihara con 14 láminas: números por teclado y trazos con mouse o dedo en láminas 11 y 14. La calificación compara tu dibujo con cada camino y refina tipo e intensidad. Sin omitir en primer uso. Al final arma tu preset (tipo + intensidad) y lo guarda en `localStorage`.
+- Test Ishihara con 14 láminas: dibuja con mouse o dedo el número que ves (se reconoce por plantillas) o el trazo que sigues en láminas 11 y 14. Sin omitir en primer uso. Al final arma tu preset (tipo + intensidad) y lo guarda en `localStorage`.
+- Botón de shaders: popup con el vertex y fragment GLSL en uso, con copiar.
 - 3 presets fijos al 100% para referencia rápida. Cada preset afecta toda la imagen. La vista dividida queda como opción manual.
 - Modo 0 original / 1 simulación / 2 corrección.
 - Tipo 0 normal / 1 protan / 2 deutan / 3 tritan.

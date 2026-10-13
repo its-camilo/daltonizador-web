@@ -68,6 +68,7 @@ void main() {
   let srcCanvas = null, videoEl = null, useVideo = false;
   let loc = {};
   let state = { mode: 1, type: 2, severity: 0.8, split: false, on: true };
+  let vsSrcUsed = '', fsSrcUsed = '';
   let frames = 0, lastT = performance.now(), fps = 0;
 
   function log(msg) {
@@ -314,6 +315,10 @@ void main() {
       toast('Diagrama por codigo');
     });
     $('btnTest').addEventListener('click', openTest);
+    $('btnShaders').addEventListener('click', openShaders);
+    $('shClose').addEventListener('click', () => { $('shOverlay').hidden = true; });
+    $('shCopyVert').addEventListener('click', () => copyShader(vsSrcUsed, 'Vertex copiado'));
+    $('shCopyFrag').addEventListener('click', () => copyShader(fsSrcUsed, 'Fragment copiado'));
     $('testBack').addEventListener('click', () => {
       if (currentPlate() && currentPlate().kind === 'trace') Test.saved[Test.idx] = Test.strokes;
       if (Test.idx > 0) { Test.idx--; renderTestStep(); }
@@ -323,9 +328,12 @@ void main() {
     // Dibujo con mouse o tacto sobre laminas de trazo.
     const tc = $('testCanvas');
     tc.addEventListener('pointerdown', (e) => {
-      if (!Test.open || !currentPlate() || currentPlate().kind !== 'trace') return;
+      if (!Test.open || !currentPlate()) return;
+      const k = currentPlate().kind;
+      if (k !== 'trace' && k !== 'num' && k !== 'num2') return;
       e.preventDefault();
       try { tc.setPointerCapture(e.pointerId); } catch (err) { /* ignora */ }
+      if (k !== 'trace') Test.answers[Test.idx] = ''; // dibujar anula el noveo
       Test.cur = [toTestCoords(e)];
       Test.strokes.push(Test.cur);
     });
@@ -487,35 +495,34 @@ void main() {
       hint.className = 'hint';
       hint.textContent = 'Usa el mouse o el dedo. Dibuja cada linea que veas. La calificacion compara tu trazo con cada camino.';
       q.appendChild(hint);
-      const cnt = document.createElement('p');
-      cnt.className = 'hint';
-      cnt.id = 'testStrokeCount';
-      q.appendChild(cnt);
-      updateStrokeCount();
-      const b = document.createElement('button');
-      b.className = 'opt';
+    } else {
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = 'Dibuja con el mouse o el dedo el numero que ves. Sin escribir con teclado.';
+      q.appendChild(hint);
+    }
+    const cnt = document.createElement('p');
+    cnt.className = 'hint';
+    cnt.id = 'testStrokeCount';
+    q.appendChild(cnt);
+    updateStrokeCount();
+    const b = document.createElement('button');
+    b.className = 'opt';
+    if (p.kind === 'trace') {
       b.textContent = 'Borrar trazos';
       b.addEventListener('click', () => { Test.strokes = []; Test.cur = null; Test.saved[Test.idx] = []; redrawTestPlate(); });
-      q.appendChild(b);
     } else {
-      const inp = document.createElement('input');
-      inp.type = 'text';
-      inp.id = 'testAnswer';
-      inp.inputMode = 'numeric';
-      inp.placeholder = '¿Que numero ves?';
-      inp.value = (Test.answers[Test.idx] === 'noveo') ? '' : Test.answers[Test.idx];
-      inp.setAttribute('aria-label', 'Numero que ves en la lamina');
-      q.appendChild(inp);
-      const b = document.createElement('button');
-      b.className = 'opt' + (Test.answers[Test.idx] === 'noveo' ? ' sel' : '');
       b.textContent = 'No veo ningun numero';
-      b.addEventListener('click', () => { Test.answers[Test.idx] = 'noveo'; renderTestStep(); });
-      q.appendChild(b);
-      inp.addEventListener('input', () => {
-        Test.answers[Test.idx] = inp.value.replace(/\s+/g, '');
+      b.addEventListener('click', () => {
+        Test.answers[Test.idx] = 'noveo';
+        Test.strokes = [];
+        Test.cur = null;
+        Test.saved[Test.idx] = [];
+        redrawTestPlate();
+        toast('Registrado: no ve numero');
       });
-      setTimeout(() => inp.focus(), 50);
     }
+    q.appendChild(b);
     $('testBack').disabled = Test.idx === 0;
     $('testNext').textContent = (Test.idx === 13) ? 'Ver resultado →' : 'Siguiente →';
   }
@@ -524,10 +531,17 @@ void main() {
     const p = currentPlate();
     let a = Test.answers[Test.idx];
     if (p.kind !== 'trace') {
-      const inp = $('testAnswer');
-      if (inp) a = inp.value.replace(/\s+/g, '');
-      if (a === '') { toast('Responde o pulsa No veo numero'); return; }
-      Test.answers[Test.idx] = a.toLowerCase();
+      const tc = testCanvas();
+      const hasDrawing = Test.strokes.some(function (st) { return st.length >= 4; });
+      if (hasDrawing) {
+        const rec = window.scoreDrawnNumber(p.id, Test.strokes, tc.width);
+        if (rec === null) { toast('Dibuja el numero o pulsa No veo numero'); return; }
+        Test.saved[Test.idx] = Test.strokes;
+        a = rec; // candidato reconocido o noveo por baja coincidencia
+      } else if (a === 'noveo') {
+        Test.saved[Test.idx] = [];
+      } else { toast('Dibuja el numero o pulsa No veo numero'); return; }
+      Test.answers[Test.idx] = a;
     } else {
       const tc = testCanvas();
       const res = window.scoreTrace(p.id, Test.strokes, tc.width);
@@ -588,6 +602,28 @@ void main() {
     box.scrollIntoView({ block: 'nearest' });
   }
 
+  // ---- Visor de shaders actuales ----
+  function openShaders() {
+    $('shVert').textContent = vsSrcUsed || '// sin cargar aun';
+    $('shFrag').textContent = fsSrcUsed || '// sin cargar aun';
+    $('shOverlay').hidden = false;
+  }
+
+  function copyShader(src, msg) {
+    if (!src) { toast('Nada para copiar'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(src).then(() => toast(msg), () => toast('No se pudo copiar'));
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = src;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); toast(msg); }
+      catch (e) { toast('No se pudo copiar'); }
+      document.body.removeChild(ta);
+    }
+  }
+
   async function boot() {
     const canvas = $('gl');
     gl = canvas.getContext('webgl2', { antialias: false });
@@ -601,6 +637,8 @@ void main() {
     // Carga shaders .vert y .frag independientes. Fallback embebido si file://.
     const vsSrc = await loadText('shaders/daltonizador.vert', FALLBACK_VERT);
     const fsSrc = await loadText('shaders/daltonizador.frag', FALLBACK_FRAG);
+    vsSrcUsed = vsSrc;
+    fsSrcUsed = fsSrc;
     if (vsSrc === FALLBACK_VERT || fsSrc === FALLBACK_FRAG) {
       log('Modo file:// con respaldo embebido. Para .frag independiente usa servidor local.');
     }
