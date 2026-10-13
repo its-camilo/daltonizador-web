@@ -17,7 +17,8 @@ Host en `main.js` con WebGL2 directo.
 - `shaders/daltonizador.vert` — passthrough NDC, sin matrices.
 - `shaders/daltonizador.frag` — `srgb2lin` exacta, LMS Bradford, proyectores Brettel 1997, severidad Machado 0-1, preserva Y, `lin2srgb` exacta.
 - `diagram.js` — imagen de prueba por código. Gradientes, rampa gris, parches, par rojo-verde vulnerable 1.28:1, par azul-amarillo seguro, placas tipo Ishihara.
-- `presets.js` — 16 presets de configuración + intensidades 0, 0.25, 0.5, 0.75, 1.0.
+- `presets.js` — 3 presets fijos al 100%: protan, deutan, tritan.
+- `ishihara.js` — test de 14 láminas generadas por código (aproximación educativa, no oficiales Kanehara). Calcula tipo e intensidad y arma el preset propio.
 
 ## Uso
 
@@ -36,7 +37,9 @@ python3 -m http.server 8000
 Controles:
 
 - Botón ON/OFF + tecla `F` local. Sin tecla global del SO.
-- Preset, modo 0 original / 1 simulación / 2 corrección.
+- Test Ishihara con 14 láminas: responde número o trazo, sin omitir en primer uso. Al final arma tu preset (tipo + intensidad) y lo guarda en `localStorage`.
+- 3 presets fijos al 100% para referencia rápida.
+- Modo 0 original / 1 simulación / 2 corrección.
 - Tipo 0 normal / 1 protan / 2 deutan / 3 tritan.
 - Severidad 0.0 a 1.0. Fórmula `Final = Identidad*(1-s) + Tipo*s`.
 - Vista dividida: izquierda original, derecha filtrada.

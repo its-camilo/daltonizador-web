@@ -315,6 +315,10 @@ void main() {
       uploadCanvas(srcCanvas);
       toast('Diagrama por codigo');
     });
+    $('btnTest').addEventListener('click', openTest);
+    $('testBack').addEventListener('click', () => { if (Test.idx > 0) { Test.idx--; renderTestStep(); } });
+    $('testNext').addEventListener('click', testNext);
+    $('testClose').addEventListener('click', closeTest);
     $('fileImg').addEventListener('change', (e) => {
       const f = e.target.files[0];
       if (!f) return;
@@ -337,6 +341,125 @@ void main() {
       videoEl.src = URL.createObjectURL(f);
       videoEl.play().then(() => { useVideo = true; toast('Video en vivo'); });
     });
+  }
+
+  // ---- Test Ishihara: arma el preset propio ----
+  const Test = { open: false, idx: 0, answers: new Array(14).fill(''), done: null };
+
+  function openTest() {
+    Test.open = true;
+    Test.idx = 0;
+    Test.answers = new Array(14).fill('');
+    Test.done = null;
+    $('testOverlay').hidden = false;
+    $('testResult').hidden = true;
+    renderTestStep();
+  }
+
+  function closeTest() {
+    Test.open = false;
+    $('testOverlay').hidden = true;
+  }
+
+  function currentPlate() { return window.ISHIHARA_PLATES[Test.idx]; }
+
+  function renderTestStep() {
+    const p = currentPlate();
+    $('testStep').textContent = (Test.idx + 1) + '/14';
+    $('testResult').hidden = true;
+    window.drawIshiharaTestPlate($('testCanvas'), p);
+    $('testNote').textContent = 'Lamina ' + p.id + ' de 14. ' + p.note;
+    const q = $('testQ');
+    q.innerHTML = '';
+    if (p.kind === 'trace') {
+      p.opts.forEach(function (op, i) {
+        const b = document.createElement('button');
+        b.className = 'opt' + (Test.answers[Test.idx] === String(i) ? ' sel' : '');
+        b.textContent = op;
+        b.addEventListener('click', () => { Test.answers[Test.idx] = String(i); renderTestStep(); });
+        q.appendChild(b);
+      });
+    } else {
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.id = 'testAnswer';
+      inp.inputMode = 'numeric';
+      inp.placeholder = '¿Que numero ves?';
+      inp.value = (Test.answers[Test.idx] === 'noveo') ? '' : Test.answers[Test.idx];
+      inp.setAttribute('aria-label', 'Numero que ves en la lamina');
+      q.appendChild(inp);
+      const b = document.createElement('button');
+      b.className = 'opt' + (Test.answers[Test.idx] === 'noveo' ? ' sel' : '');
+      b.textContent = 'No veo ningun numero';
+      b.addEventListener('click', () => { Test.answers[Test.idx] = 'noveo'; renderTestStep(); });
+      q.appendChild(b);
+      inp.addEventListener('input', () => {
+        Test.answers[Test.idx] = inp.value.replace(/\s+/g, '');
+      });
+      setTimeout(() => inp.focus(), 50);
+    }
+    $('testBack').disabled = Test.idx === 0;
+    $('testNext').textContent = (Test.idx === 13) ? 'Ver resultado →' : 'Siguiente →';
+  }
+
+  function testNext() {
+    const p = currentPlate();
+    let a = Test.answers[Test.idx];
+    if (p.kind !== 'trace') {
+      const inp = $('testAnswer');
+      if (inp) a = inp.value.replace(/\s+/g, '');
+      if (a === '') { toast('Responde o pulsa No veo numero'); return; }
+      Test.answers[Test.idx] = a.toLowerCase();
+    } else if (a === '') { toast('Elige una opcion de trazo'); return; }
+    if (Test.idx < 13) { Test.idx++; renderTestStep(); }
+    else finishTest();
+  }
+
+  function finishTest() {
+    Test.done = window.scoreIshihara(Test.answers);
+    const r = Test.done;
+    const box = $('testResult');
+    box.hidden = false;
+    box.innerHTML = '';
+    const big = document.createElement('div');
+    big.className = 'big';
+    big.textContent = 'Resultado: ' + r.label + ' · ' + r.severity.toFixed(2);
+    box.appendChild(big);
+    [['Detalle', r.detail], ['Nota', r.note]].forEach(function (pair) {
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = pair[0] + ': ' + pair[1];
+      box.appendChild(p);
+    });
+    const row = document.createElement('div');
+    row.className = 'row';
+    const bUse = document.createElement('button');
+    bUse.className = 'primary';
+    bUse.textContent = 'Usar mi preset (correccion)';
+    bUse.addEventListener('click', () => {
+      state.type = r.type;
+      state.severity = r.severity;
+      state.mode = 2;
+      state.split = false;
+      state.on = true;
+      saveProfile(); syncUI(); closeTest();
+      toast('Preset propio: ' + r.typeName + ' ' + r.severity.toFixed(2));
+    });
+    const bSim = document.createElement('button');
+    bSim.textContent = 'Probar simulacion';
+    bSim.addEventListener('click', () => {
+      state.type = r.type === 0 ? 2 : r.type;
+      state.severity = r.type === 0 ? 1.0 : r.severity;
+      state.mode = 1;
+      state.split = true;
+      state.on = true;
+      saveProfile(); syncUI(); closeTest();
+      toast('Simulacion lista');
+    });
+    row.appendChild(bUse);
+    row.appendChild(bSim);
+    box.appendChild(row);
+    box.scrollIntoView({ block: 'nearest' });
   }
 
   async function boot() {
@@ -381,6 +504,13 @@ void main() {
     log('WebGL2 listo. Fase A con diagrama por codigo.');
     requestAnimationFrame(loop);
     window.addEventListener('resize', resize);
+    // Primer uso sin perfil: abre el test para armar el preset propio.
+    try {
+      if (!localStorage.getItem('dalton.perfil')) {
+        log('Primer uso. Haz el test Ishihara para armar tu preset.');
+        openTest();
+      }
+    } catch (e) { /* modo privado */ }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
