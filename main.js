@@ -127,6 +127,9 @@ void main() {
   }
 
   function uploadCanvas(c) {
+    // Canvas2D tiene origen arriba-izquierda. WebGL espera
+    // origen abajo-izquierda. FLIP_Y corrige el arriba-para-abajo.
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
   }
@@ -196,6 +199,7 @@ void main() {
 
   function loop() {
     if (useVideo && videoEl && !videoEl.paused && videoEl.readyState >= 2) {
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoEl);
     }
@@ -331,6 +335,8 @@ void main() {
       return;
     }
     loadProfile();
+    // UNPACK_FLIP_Y global. Corrige orientacion de Canvas2D y video.
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     // Carga shaders .vert y .frag independientes. Fallback embebido si file://.
     const vsSrc = await loadText('shaders/daltonizador.vert', FALLBACK_VERT);
     const fsSrc = await loadText('shaders/daltonizador.frag', FALLBACK_FRAG);
@@ -354,8 +360,7 @@ void main() {
     makeTexture();
     srcCanvas = window.makeTestDiagram(1024, 640);
     // Textura inicial 1024x640 para evitar FBO cero.
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, srcCanvas);
+    uploadCanvas(srcCanvas);
     makeFBO(canvas.clientWidth || 1024, canvas.clientHeight || 640);
     videoEl = $('video');
 
