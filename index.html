@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Daltonizador GLSL — WebGL2 Fase A</title>
-<link rel="stylesheet" href="style.css?v=5" />
+<link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
 <header>
@@ -83,7 +83,7 @@
 
 <div id="testOverlay" class="overlay" hidden>
   <div class="sheet" role="dialog" aria-label="Test Ishihara">
-    <h2>Test Ishihara <span id="testStep" class="tag">1/14</span></h2>
+    <h2>Test Ishihara <span id="testStep" class="tag">1/14</span> <span id="testTimer" class="tag">⏱ 0.0s</span></h2>
     <p class="hint">Mira la lámina y responde. Máximo 3 segundos por lámina. No omitas en primer uso.</p>
     <canvas id="testCanvas" width="420" height="420"></canvas>
     <p id="testNote" class="hint"></p>
@@ -97,10 +97,10 @@
   </div>
 </div>
 
-<script src="diagram.js?v=5"></script>
-<script src="presets.js?v=5"></script>
-<script src="ishihara.js?v=5"></script>
-<script src="main.js?v=5"></script>
+<script src="diagram.js?v=6"></script>
+<script src="presets.js?v=6"></script>
+<script src="ishihara.js?v=6"></script>
+<script src="main.js?v=6"></script>
 <script>
   document.querySelectorAll('[data-sev]').forEach(function (b) {
     b.addEventListener('click', function () {

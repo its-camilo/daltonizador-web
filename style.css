@@ -39,7 +39,7 @@ code { background: #000; padding: 1px 6px; border-radius: 6px; overflow-wrap: an
 .overlay[hidden] { display: none; }
 .sheet { background: #171b1e; border: 2px solid #555; border-radius: 14px; padding: 16px; width: 100%; max-width: 540px; display: flex; flex-direction: column; gap: 10px; }
 .sheet h2 { margin: 0; font-size: clamp(18px, 3vw, 22px); }
-canvas#testCanvas { width: 100%; height: auto; aspect-ratio: 1 / 1; display: block; background: #22252a; border: 2px solid #333; border-radius: 10px; }
+canvas#testCanvas { width: 100%; height: auto; aspect-ratio: 1 / 1; display: block; background: #22252a; border: 2px solid #333; border-radius: 10px; touch-action: none; }
 #testQ { display: flex; flex-direction: column; gap: 8px; }
 #testQ input[type=text] { font-size: 22px; padding: 10px; border-radius: 8px; border: 2px solid #555; background: #0e1113; color: #fff; text-align: center; width: 100%; }
 .opt { text-align: left; font-size: 15px; }

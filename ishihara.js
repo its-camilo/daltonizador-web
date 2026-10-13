@@ -62,16 +62,92 @@
             u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]];
   }
 
-  function dottedPath(ctx, pts, R, color, w) {
-    for (let s = 0; s < pts.length - 2; s += 2) {
-      for (let t = 0; t <= 1; t += 0.025) {
-        const p = qbez(pts[s], pts[s + 1], pts[s + 2], t);
-        const jx = (R() - 0.5) * 3, jy = (R() - 0.5) * 3;
-        disc(ctx, p[0] + jx, p[1] + jy, 4 + R() * 4, color);
-      }
-    }
-    void w;
+  // Trazos de las laminas 11 y 14 en coordenadas relativas (-100..100).
+  // Cada trazo es una lista de segmentos quadraticos [p0,p1,p2].
+  function traceDef(id) {
+    if (id === 11) return [
+      { color: '#3f7f7a', segs: [[[-90, 80], [-30, -90], [40, -20]], [[40, -20], [90, -80], [60, 70]]] },
+      { color: '#a05a4a', segs: [[[-95, -60], [0, 40], [95, 50]]] }
+    ];
+    return [
+      { color: '#7a4a8c', segs: [[[-95, 60], [-20, -80], [30, 0]], [[30, 0], [95, -40], [60, 60]]] },
+      { color: '#a04a3a', segs: [[[-95, -40], [0, 60], [40, 10]], [[40, 10], [95, 70], [20, 80]]] }
+    ];
   }
+
+  // Trazos en pixeles del canvas. Misma fuente para dibujar y calificar.
+  function scaledTracePaths(id, W) {
+    const k = W / 420, cx = W / 2, cy = W / 2;
+    return traceDef(id).map(function (path) {
+      const pts = [];
+      path.segs.forEach(function (s) {
+        const a = [cx + s[0][0] * k, cy + s[0][1] * k];
+        const b = [cx + s[1][0] * k, cy + s[1][1] * k];
+        const c = [cx + s[2][0] * k, cy + s[2][1] * k];
+        for (let t = 0; t <= 1.0001; t += 0.04) pts.push(qbez(a, b, c, t));
+      });
+      return { color: path.color, pts: pts };
+    });
+  }
+
+  function drawTracePaths(ctx, id, W, R) {
+    scaledTracePaths(id, W).forEach(function (path) {
+      for (let i = 0; i < path.pts.length; i += 2) {
+        const p = path.pts[i];
+        disc(ctx, p[0] + (R() - 0.5) * 4, p[1] + (R() - 0.5) * 4, 4 + R() * 4, path.color);
+      }
+    });
+  }
+
+  function distPt(p, q) {
+    const dx = p[0] - q[0], dy = p[1] - q[1];
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Califica trazos del usuario. strokes: arreglo de trazos, cada uno lista [x,y].
+  // Asigna cada trazo al camino mas cercano solo si gana con claridad.
+  // Devuelve indice de opcion ('0'..'3') o null si no hay dibujo util.
+  window.scoreTrace = function (plateId, strokes, S) {
+    const use = strokes.filter(function (st) { return st.length >= 4; });
+    let n = 0;
+    use.forEach(function (st) { n += st.length; });
+    if (!use.length || n < 8) return null;
+    const paths = scaledTracePaths(plateId, S || 420);
+    const tol = Math.max(18, (S || 420) * 0.07);
+    function meanDist(st, pts) {
+      let sum = 0;
+      for (let i = 0; i < st.length; i++) {
+        let m = 1e12;
+        for (let j = 0; j < pts.length; j++) {
+          const d = distPt(st[i], pts[j]);
+          if (d < m) m = d;
+        }
+        sum += m;
+      }
+      return sum / st.length;
+    }
+    const owners = paths.map(function () { return false; });
+    use.forEach(function (st) {
+      const ds = paths.map(function (p) { return meanDist(st, p.pts); });
+      let bi = 0;
+      for (let i = 1; i < ds.length; i++) if (ds[i] < ds[bi]) bi++;
+      if (ds[bi] > tol) return;
+      for (let i = 0; i < ds.length; i++) {
+        if (i !== bi && ds[bi] > ds[i] * 0.7) return; // sin ganador claro
+      }
+      owners[bi] = true;
+    });
+    if (plateId === 11) {
+      if (owners[0]) return '0';
+      if (owners[1]) return '1';
+      return '2';
+    }
+    const p = owners[0], r = owners[1];
+    if (p && r) return '0';
+    if (p) return '1';
+    if (r) return '2';
+    return '3';
+  };
 
   window.drawIshiharaTestPlate = function (canvas, plate) {
     const ctx = canvas.getContext('2d');
@@ -86,16 +162,14 @@
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
       ctx.fillStyle = '#8fa07a'; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
       dotField(ctx, cx, cy, r, R, 700, ['#8fa07a', '#7d9268', '#9db088', '#6f845e']);
-      dottedPath(ctx, [[cx - 90, cy + 80], [cx - 30, cy - 90], [cx + 40, cy - 20], [cx + 90, cy - 80], [cx + 60, cy + 70]], R, '#3f7f7a', W);
-      dottedPath(ctx, [[cx - 95, cy - 60], [cx, cy + 40], [cx + 95, cy + 50]], R, '#a05a4a', W);
+      drawTracePaths(ctx, 11, W, R);
       ctx.restore();
     } else if (plate.kind === 'trace' && plate.id === 14) {
       ctx.save();
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
       ctx.fillStyle = '#8b8f7a'; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
       dotField(ctx, cx, cy, r, R, 700, ['#8b8f7a', '#7c8069', '#9aa086', '#6f735f']);
-      dottedPath(ctx, [[cx - 95, cy + 60], [cx - 20, cy - 80], [cx + 30, cy + 0], [cx + 95, cy - 40]], R, '#7a4a8c', W);
-      dottedPath(ctx, [[cx - 95, cy - 40], [cx, cy + 60], [cx + 40, cy + 10], [cx + 95, cy + 70]], R, '#a04a3a', W);
+      drawTracePaths(ctx, 14, W, R);
       ctx.restore();
     } else {
       const bg = plate.rev ? ['#a5714f', '#96613f', '#b3805c', '#8a5638'] : ['#7fae6e', '#8fae7a', '#6f9e63', '#93b06a'];

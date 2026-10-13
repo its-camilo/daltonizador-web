@@ -316,9 +316,52 @@ void main() {
       toast('Diagrama por codigo');
     });
     $('btnTest').addEventListener('click', openTest);
-    $('testBack').addEventListener('click', () => { if (Test.idx > 0) { Test.idx--; renderTestStep(); } });
+    $('testBack').addEventListener('click', () => {
+      if (currentPlate() && currentPlate().kind === 'trace') Test.saved[Test.idx] = Test.strokes;
+      if (Test.idx > 0) { Test.idx--; renderTestStep(); }
+    });
     $('testNext').addEventListener('click', testNext);
     $('testClose').addEventListener('click', closeTest);
+    // Dibujo con mouse o tacto sobre laminas de trazo.
+    const tc = $('testCanvas');
+    tc.addEventListener('pointerdown', (e) => {
+      if (!Test.open || !currentPlate() || currentPlate().kind !== 'trace') return;
+      e.preventDefault();
+      try { tc.setPointerCapture(e.pointerId); } catch (err) { /* ignora */ }
+      Test.cur = [toTestCoords(e)];
+      Test.strokes.push(Test.cur);
+    });
+    tc.addEventListener('pointermove', (e) => {
+      if (!Test.cur) return;
+      e.preventDefault();
+      const p = toTestCoords(e);
+      const last = Test.cur[Test.cur.length - 1];
+      if (Math.hypot(p[0] - last[0], p[1] - last[1]) < 2) return;
+      Test.cur.push(p);
+      // Trazo incremental sin redibujar la lamina.
+      const x = tc.getContext('2d');
+      x.save();
+      x.lineWidth = Math.max(4, tc.width * 0.014);
+      x.lineCap = 'round';
+      x.lineJoin = 'round';
+      x.strokeStyle = '#ffeb3b';
+      x.shadowColor = '#000';
+      x.shadowBlur = 6;
+      x.beginPath();
+      x.moveTo(last[0], last[1]);
+      x.lineTo(p[0], p[1]);
+      x.stroke();
+      x.restore();
+    });
+    const endTrace = () => {
+      if (Test.cur) {
+        Test.saved[Test.idx] = Test.strokes;
+        Test.cur = null;
+        updateStrokeCount();
+      }
+    };
+    tc.addEventListener('pointerup', endTrace);
+    tc.addEventListener('pointercancel', endTrace);
     $('fileImg').addEventListener('change', (e) => {
       const f = e.target.files[0];
       if (!f) return;
@@ -344,13 +387,75 @@ void main() {
   }
 
   // ---- Test Ishihara: arma el preset propio ----
-  const Test = { open: false, idx: 0, answers: new Array(14).fill(''), done: null };
+  const Test = { open: false, idx: 0, answers: new Array(14).fill(''), done: null, strokes: [], cur: null, saved: {}, t0: 0 };
+  let testClock = null;
+
+  function testCanvas() { return $('testCanvas'); }
+
+  function toTestCoords(e) {
+    const tc = testCanvas();
+    const r = tc.getBoundingClientRect();
+    return [(e.clientX - r.left) * tc.width / r.width, (e.clientY - r.top) * tc.height / r.height];
+  }
+
+  function drawUserStrokes() {
+    const tc = testCanvas();
+    const x = tc.getContext('2d');
+    x.save();
+    x.lineWidth = Math.max(4, tc.width * 0.014);
+    x.lineCap = 'round';
+    x.lineJoin = 'round';
+    x.strokeStyle = '#ffeb3b';
+    x.shadowColor = '#000';
+    x.shadowBlur = 6;
+    Test.strokes.forEach(function (st) {
+      if (st.length === 1) {
+        x.fillStyle = '#ffeb3b';
+        x.beginPath();
+        x.arc(st[0][0], st[0][1], x.lineWidth / 2, 0, Math.PI * 2);
+        x.fill();
+        return;
+      }
+      x.beginPath();
+      x.moveTo(st[0][0], st[0][1]);
+      for (let i = 1; i < st.length; i++) x.lineTo(st[i][0], st[i][1]);
+      x.stroke();
+    });
+    x.restore();
+  }
+
+  function redrawTestPlate() {
+    window.drawIshiharaTestPlate(testCanvas(), currentPlate());
+    drawUserStrokes();
+    updateStrokeCount();
+  }
+
+  function updateStrokeCount() {
+    const el = $('testStrokeCount');
+    if (el) el.textContent = 'Trazos dibujados: ' + Test.strokes.length + '. Puedes hacer varios trazos.';
+  }
+
+  function startClock() {
+    stopClock();
+    Test.t0 = performance.now();
+    const el = $('testTimer');
+    testClock = setInterval(() => {
+      const s = (performance.now() - Test.t0) / 1000;
+      el.textContent = '⏱ ' + s.toFixed(1) + 's';
+      el.style.background = s > 3 ? '#a02020' : '';
+    }, 200);
+  }
+
+  function stopClock() {
+    if (testClock) { clearInterval(testClock); testClock = null; }
+  }
 
   function openTest() {
     Test.open = true;
     Test.idx = 0;
     Test.answers = new Array(14).fill('');
     Test.done = null;
+    Test.saved = {};
     $('testOverlay').hidden = false;
     $('testResult').hidden = true;
     renderTestStep();
@@ -358,6 +463,8 @@ void main() {
 
   function closeTest() {
     Test.open = false;
+    Test.cur = null;
+    stopClock();
     $('testOverlay').hidden = true;
   }
 
@@ -367,18 +474,31 @@ void main() {
     const p = currentPlate();
     $('testStep').textContent = (Test.idx + 1) + '/14';
     $('testResult').hidden = true;
-    window.drawIshiharaTestPlate($('testCanvas'), p);
-    $('testNote').textContent = 'Lamina ' + p.id + ' de 14. ' + p.note;
+    Test.strokes = Test.saved[Test.idx] || [];
+    Test.cur = null;
+    window.drawIshiharaTestPlate(testCanvas(), p);
+    drawUserStrokes();
+    testCanvas().style.cursor = (p.kind === 'trace') ? 'crosshair' : 'default';
+    startClock();
+    $('testNote').textContent = 'Lamina ' + p.id + ' de 14. ' + p.note +
+      (p.kind === 'trace' ? ' Dibuja sobre la lamina la linea que logras seguir.' : '');
     const q = $('testQ');
     q.innerHTML = '';
     if (p.kind === 'trace') {
-      p.opts.forEach(function (op, i) {
-        const b = document.createElement('button');
-        b.className = 'opt' + (Test.answers[Test.idx] === String(i) ? ' sel' : '');
-        b.textContent = op;
-        b.addEventListener('click', () => { Test.answers[Test.idx] = String(i); renderTestStep(); });
-        q.appendChild(b);
-      });
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = 'Usa el mouse o el dedo. Dibuja cada linea que veas. La calificacion compara tu trazo con cada camino.';
+      q.appendChild(hint);
+      const cnt = document.createElement('p');
+      cnt.className = 'hint';
+      cnt.id = 'testStrokeCount';
+      q.appendChild(cnt);
+      updateStrokeCount();
+      const b = document.createElement('button');
+      b.className = 'opt';
+      b.textContent = 'Borrar trazos';
+      b.addEventListener('click', () => { Test.strokes = []; Test.cur = null; Test.saved[Test.idx] = []; redrawTestPlate(); });
+      q.appendChild(b);
     } else {
       const inp = document.createElement('input');
       inp.type = 'text';
@@ -410,12 +530,20 @@ void main() {
       if (inp) a = inp.value.replace(/\s+/g, '');
       if (a === '') { toast('Responde o pulsa No veo numero'); return; }
       Test.answers[Test.idx] = a.toLowerCase();
-    } else if (a === '') { toast('Elige una opcion de trazo'); return; }
+    } else {
+      const tc = testCanvas();
+      const res = window.scoreTrace(p.id, Test.strokes, tc.width);
+      if (res === null) { toast('Dibuja el trazo primero'); return; }
+      Test.saved[Test.idx] = Test.strokes;
+      a = res;
+      Test.answers[Test.idx] = a;
+    }
     if (Test.idx < 13) { Test.idx++; renderTestStep(); }
     else finishTest();
   }
 
   function finishTest() {
+    stopClock();
     Test.done = window.scoreIshihara(Test.answers);
     const r = Test.done;
     const box = $('testResult');
@@ -451,7 +579,7 @@ void main() {
       state.type = r.type === 0 ? 2 : r.type;
       state.severity = r.type === 0 ? 1.0 : r.severity;
       state.mode = 1;
-      state.split = true;
+      state.split = false;
       state.on = true;
       saveProfile(); syncUI(); closeTest();
       toast('Simulacion lista');

@@ -37,8 +37,8 @@ python3 -m http.server 8000
 Controles:
 
 - Botón ON/OFF + tecla `F` local. Sin tecla global del SO.
-- Test Ishihara con 14 láminas: responde número o trazo, sin omitir en primer uso. Al final arma tu preset (tipo + intensidad) y lo guarda en `localStorage`.
-- 3 presets fijos al 100% para referencia rápida.
+- Test Ishihara con 14 láminas: números por teclado y trazos con mouse o dedo en láminas 11 y 14. La calificación compara tu dibujo con cada camino y refina tipo e intensidad. Sin omitir en primer uso. Al final arma tu preset (tipo + intensidad) y lo guarda en `localStorage`.
+- 3 presets fijos al 100% para referencia rápida. Cada preset afecta toda la imagen. La vista dividida queda como opción manual.
 - Modo 0 original / 1 simulación / 2 corrección.
 - Tipo 0 normal / 1 protan / 2 deutan / 3 tritan.
 - Severidad 0.0 a 1.0. Fórmula `Final = Identidad*(1-s) + Tipo*s`.
