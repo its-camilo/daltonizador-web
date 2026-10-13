@@ -5,7 +5,8 @@
  * mode: 1 simulacion. type: 1 protan, 2 deutan, 3 tritan.
  */
 window.DALTON_PRESETS = [
-  { id: 'vision-normal', nombre: 'Visión normal', descripcion: 'Original sin filtro. Referencia.', mode: 0, type: 0, severity: 0, split: false },  { id: 'sim-protan-100', nombre: 'Protan 100%', descripcion: 'Protanopia total. Referencia.', mode: 1, type: 1, severity: 1.0, split: false },
+  { id: 'vision-normal', nombre: 'Visión normal', descripcion: 'Original sin filtro. Referencia.', mode: 0, type: 0, severity: 0, split: false },
+  { id: 'sim-protan-100', nombre: 'Protan 100%', descripcion: 'Protanopia total. Referencia.', mode: 1, type: 1, severity: 1.0, split: false },
   { id: 'sim-deutan-100', nombre: 'Deutan 100%', descripcion: 'Deuteranopia total. La mas comun.', mode: 1, type: 2, severity: 1.0, split: false },
   { id: 'sim-tritan-100', nombre: 'Tritan 100%', descripcion: 'Tritanopia total. Caso raro.', mode: 1, type: 3, severity: 1.0, split: false }
 ];
