@@ -254,6 +254,14 @@ void main() {
     const names = { 0: 'Normal', 1: 'Protan', 2: 'Deutan', 3: 'Tritan' };
     const modes = { 0: 'Original', 1: 'Simulacion', 2: 'Correccion' };
     $('hudState').textContent = modes[state.mode] + ' · ' + names[state.type] + ' ' + Number(state.severity).toFixed(2);
+    // Sincroniza el preset si el estado coincide con uno conocido.
+    const sel = $('preset');
+    if (sel && sel.options.length) {
+      const hit = (window.DALTON_PRESETS || []).find((p) =>
+        p.mode === state.mode && p.type === state.type &&
+        Math.abs(p.severity - state.severity) < 1e-6 && p.split === state.split);
+      sel.value = hit ? hit.id : '';
+    }
   }
 
   function applyPreset(id) {
@@ -273,6 +281,10 @@ void main() {
   function bindUI() {
     const presets = window.DALTON_PRESETS || [];
     const sel = $('preset');
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = '— Elige preset —';
+    sel.appendChild(ph);
     presets.forEach((p) => {
       const o = document.createElement('option');
       o.value = p.id;

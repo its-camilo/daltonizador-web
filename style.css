@@ -26,6 +26,7 @@ input[type=file] { overflow: hidden; text-overflow: ellipsis; }
 input[type=file]::file-selector-button { background: #2b7fff; color: #fff; border: 0; border-radius: 6px; padding: 8px 12px; margin-right: 10px; cursor: pointer; font-weight: 700; }
 input[type=range] { width: 100%; height: 32px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
 .check { flex-direction: row; align-items: center; gap: 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips button { flex: 1 1 52px; padding: 8px 6px; font-size: 13px; }
