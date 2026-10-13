@@ -54,14 +54,14 @@
     const rev = !!plate.rev;
     if (plate.kind === 'num2') {
       return {
-        font: 'bold 120px sans-serif',
-        slots: [{ x: cx - 52, y: cy + 4 }, { x: cx + 52, y: cy + 4 }],
-        figColors: ['#3f7f6e', '#8c3d30'],
-        bg: ['#7fae6e', '#8fae7a', '#6f9e63', '#93b06a'],
-        bgBase: '#7fae6e'
+        font: 'bold 132px sans-serif',
+        slots: [{ x: cx - 50, y: cy + 4 }, { x: cx + 50, y: cy + 4 }],
+        figColors: ['#37806f', '#93392b'],
+        bg: ['#84ad6f', '#93ae7c', '#74a065', '#98b26e'],
+        bgBase: '#84ad6f'
       };
     }
-    const size = plate.fig.length > 1 ? 150 : 190;
+    const size = plate.fig.length > 1 ? 160 : 200;
     return {
       font: 'bold ' + size + 'px sans-serif',
       slots: [{ x: cx, y: cy + 6 }],
@@ -148,29 +148,67 @@
     return hit / A.length;
   }
 
+  // Normaliza puntos: centra en centroide y escala por radio medio.
+  // El reconocimiento queda invariante a posicion y tamaño del dibujo.
+  function normPts(pts, cap) {
+    let s = pts;
+    if (s.length > cap) {
+      const st = Math.ceil(s.length / cap);
+      s = s.filter(function (_, i) { return i % st === 0; });
+    }
+    let cx = 0, cy = 0;
+    s.forEach(function (p) { cx += p[0]; cy += p[1]; });
+    cx /= s.length; cy /= s.length;
+    let r = 0;
+    s.forEach(function (p) { r += Math.hypot(p[0] - cx, p[1] - cy); });
+    r /= s.length;
+    if (!(r > 1e-6)) r = 1;
+    return s.map(function (p) { return [(p[0] - cx) / r, (p[1] - cy) / r]; });
+  }
+  window.__matchNorm = normPts;
+  window.__matchCov = coverageOf;
+
   // Reconoce el numero dibujado por comparacion con plantillas.
+  // Normaliza dibujo y plantilla: vale dibujar grande, pequeño o movido.
   // Devuelve el candidato ('8', '70', 'noveo', ...) o null si no hay dibujo.
   window.scoreDrawnNumber = function (plateId, strokes, S) {
     const use = strokes.filter(function (st) { return st.length >= 4; });
     let n = 0;
     use.forEach(function (st) { n += st.length; });
     if (!use.length || n < 6) return null;
+    const flat = flatStrokes(use);
+    // Exige tamaño minimo para evitar garabatos diminutos.
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    flat.forEach(function (p) {
+      if (p[0] < x0) x0 = p[0];
+      if (p[0] > x1) x1 = p[0];
+      if (p[1] < y0) y0 = p[1];
+      if (p[1] > y1) y1 = p[1];
+    });
+    if (Math.hypot(x1 - x0, y1 - y0) < 40) return null;
     const W = 420;
     const plate = window.ISHIHARA_PLATES.filter(function (p) { return p.id === plateId; })[0];
     if (!plate) return null;
     const spec = figureSpec(plate, W);
-    const flat = flatStrokes(use);
-    const tol = 14;
+    const NF = normPts(flat, 300);
+    const tol = 0.45;
     const cands = plateCandidates(plate);
+    const scores = {};
     let best = 'noveo', bestF1 = 0;
     cands.forEach(function (cand) {
-      const T = templatePoints(W, spec.font, candidateDraws(plate, W, cand));
-      const rec = coverageOf(T, flat, tol);
-      const prec = coverageOf(flat, T, tol);
+      const T = normPts(templatePoints(W, spec.font, candidateDraws(plate, W, cand)), 300);
+      const rec = coverageOf(T, NF, tol);
+      const prec = coverageOf(NF, T, tol);
       const f1 = (rec + prec) > 0 ? 2 * rec * prec / (rec + prec) : 0;
+      scores[cand] = f1;
       if (f1 > bestF1) { bestF1 = f1; best = cand; }
     });
-    if (bestF1 < 0.30) return 'noveo';
+    if (bestF1 < 0.25) return 'noveo';
+    // Margen a favor de la respuesta normal: no sobrediagnosticar por dibujo torpe.
+    const normalAns = plate.normal;
+    if (best !== 'noveo' && normalAns && best !== normalAns && scores[normalAns] != null) {
+      if (bestF1 - scores[normalAns] < 0.05) return normalAns;
+    }
     return best;
   };
 
@@ -309,7 +347,7 @@
       ctx.save();
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
       ctx.fillStyle = spec.bgBase; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-      const ND = 2600;
+      const ND = 3000;
       for (let i = 0; i < ND; i++) {
         const a = R() * Math.PI * 2;
         const d = Math.sqrt(R()) * (r - 4);
@@ -320,9 +358,9 @@
           let slot = 0;
           if (plate.kind === 'num2') slot = (px < cx) ? 0 : 1;
           col = spec.figColors[slot];
-          if (R() < 0.25) col = spec.bg[(R() * spec.bg.length) | 0]; // ruido
-        } else if (R() < 0.04) {
-          col = spec.figColors[(R() * spec.figColors.length) | 0]; // señuelo
+          if (R() < 0.10) col = spec.bg[(R() * spec.bg.length) | 0]; // poco ruido
+        } else if (R() < 0.02) {
+          col = spec.figColors[(R() * spec.figColors.length) | 0]; // poco señuelo
         }
         disc(ctx, px, py, 2.5 + R() * 4.5, col);
       }

@@ -538,6 +538,7 @@ void main() {
         if (rec === null) { toast('Dibuja el numero o pulsa No veo numero'); return; }
         Test.saved[Test.idx] = Test.strokes;
         a = rec; // candidato reconocido o noveo por baja coincidencia
+        toast(a === 'noveo' ? 'No se reconoce: cuenta como no visto' : 'Leido: ' + a);
       } else if (a === 'noveo') {
         Test.saved[Test.idx] = [];
       } else { toast('Dibuja el numero o pulsa No veo numero'); return; }
