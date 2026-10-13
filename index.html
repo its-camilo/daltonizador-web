@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Daltonizador GLSL — WebGL2 Fase A</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>Daltonizador GLSL <span class="tag">WebGL2 · GLSL ES 3.00 · JS puro</span></h1>
+  <p class="sub">Fase A imagen por código · Fase B video local · Fase C juego web simple. Sin frameworks. 100% local.</p>
+</header>
+
+<main>
+  <section class="stage">
+    <canvas id="gl" width="1024" height="640"></canvas>
+    <div id="toast" class="toast">Filtro ON</div>
+    <div class="hudline"><span id="hudState">—</span><span><span id="fps">— fps</span> · <span id="res">—</span></span></div>
+    <p id="fallback-note" class="warn" style="display:none">Fetch bloqueado por file://. Ejecuta: <code>python3 -m http.server 8000</code> y abre <code>http://localhost:8000</code>.</p>
+    <p id="log" class="log">Iniciando…</p>
+  </section>
+
+  <aside class="panel" aria-label="Controles">
+    <div class="row">
+      <button id="btnOn" class="primary">Filtro: ON</button>
+      <button id="btnDiagram">↻ Diagrama por código</button>
+    </div>
+
+    <label>Preset de configuración
+      <select id="preset"></select>
+    </label>
+
+    <div class="grid2">
+      <label>Modo
+        <select id="mode">
+          <option value="0">Original</option>
+          <option value="1">Simulación</option>
+          <option value="2">Corrección</option>
+        </select>
+      </label>
+      <label>Tipo
+        <select id="type">
+          <option value="0">Normal</option>
+          <option value="1">Protan (rojo)</option>
+          <option value="2">Deutan (verde)</option>
+          <option value="3">Tritan (azul)</option>
+        </select>
+      </label>
+    </div>
+
+    <label>Intensidad / severidad: <strong id="sevVal">0.80</strong>
+      <input id="severity" type="range" min="0" max="1" step="0.05" value="0.8" />
+    </label>
+    <div class="chips">
+      <button data-sev="0">0</button>
+      <button data-sev="0.25">0.25</button>
+      <button data-sev="0.5">0.50</button>
+      <button data-sev="0.75">0.75</button>
+      <button data-sev="1">1.00</button>
+    </div>
+
+    <label class="check"><input id="split" type="checkbox" checked /> Vista dividida (izq original / der filtro)</label>
+
+    <div class="grid2">
+      <label>Cargar imagen
+        <input id="fileImg" type="file" accept="image/png,image/jpeg" />
+      </label>
+      <label>Cargar video (Fase B)
+        <input id="fileVideo" type="file" accept="video/*" />
+      </label>
+    </div>
+
+    <p class="hint">Atajo: tecla <kbd>F</kbd> activa y desactiva. Perfil se guarda en localStorage. Tecla global del SO eliminada en web.</p>
+    <p class="hint">Para .vert/.frag independientes usa servidor local: <code>python3 -m http.server 8000</code>. Sin CDN, sin build.</p>
+  </aside>
+</main>
+
+<video id="video" playsinline muted loop style="display:none"></video>
+
+<script src="diagram.js"></script>
+<script src="presets.js"></script>
+<script src="main.js"></script>
+<script>
+  document.querySelectorAll('[data-sev]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var s = document.getElementById('severity');
+      s.value = b.getAttribute('data-sev');
+      s.dispatchEvent(new Event('input'));
+    });
+  });
+</script>
+</body>
+</html>
