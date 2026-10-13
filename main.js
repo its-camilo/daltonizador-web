@@ -67,7 +67,7 @@ void main() {
   let tex = null, fbo = null, fboTex = null;
   let srcCanvas = null, videoEl = null, useVideo = false;
   let loc = {};
-  let state = { mode: 1, type: 2, severity: 0.8, split: true, on: true };
+  let state = { mode: 1, type: 2, severity: 0.8, split: false, on: true };
   let frames = 0, lastT = performance.now(), fps = 0;
 
   function log(msg) {
@@ -232,8 +232,8 @@ void main() {
       const u = JSON.parse(localStorage.getItem('dalton.ui') || 'null');
       if (u && typeof u.mode === 'number') {
         state.mode = u.mode;
-        state.split = !!u.split;
       }
+      state.split = false; // vista dividida eliminada: siempre imagen completa
     } catch (e) { /* ignora */ }
   }
 
@@ -249,7 +249,6 @@ void main() {
     $('type').value = String(state.type);
     $('severity').value = String(state.severity);
     $('sevVal').textContent = Number(state.severity).toFixed(2);
-    $('split').checked = state.split;
     $('btnOn').textContent = state.on ? 'Filtro: ON' : 'Filtro: OFF';
     const names = { 0: 'Normal', 1: 'Protan', 2: 'Deutan', 3: 'Tritan' };
     const modes = { 0: 'Original', 1: 'Simulacion', 2: 'Correccion' };
@@ -296,7 +295,6 @@ void main() {
     $('mode').addEventListener('change', (e) => { state.mode = +e.target.value; saveProfile(); syncUI(); });
     $('type').addEventListener('change', (e) => { state.type = +e.target.value; saveProfile(); syncUI(); });
     $('severity').addEventListener('input', (e) => { state.severity = +e.target.value; saveProfile(); syncUI(); });
-    $('split').addEventListener('change', (e) => { state.split = e.target.checked; saveProfile(); syncUI(); });
     $('btnOn').addEventListener('click', () => {
       state.on = !state.on;
       syncUI();

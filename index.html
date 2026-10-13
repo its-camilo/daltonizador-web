@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Daltonizador GLSL — WebGL2 Fase A</title>
-<link rel="stylesheet" href="style.css?v=6" />
+<link rel="stylesheet" href="style.css?v=7" />
 </head>
 <body>
 <header>
@@ -63,8 +63,6 @@
       <button data-sev="1">1.00</button>
     </div>
 
-    <label class="check"><input id="split" type="checkbox" checked /> Vista dividida (izq original / der filtro)</label>
-
     <div class="stack">
       <label>Cargar imagen
         <input id="fileImg" type="file" accept="image/png,image/jpeg" />
@@ -97,10 +95,10 @@
   </div>
 </div>
 
-<script src="diagram.js?v=6"></script>
-<script src="presets.js?v=6"></script>
-<script src="ishihara.js?v=6"></script>
-<script src="main.js?v=6"></script>
+<script src="diagram.js?v=7"></script>
+<script src="presets.js?v=7"></script>
+<script src="ishihara.js?v=7"></script>
+<script src="main.js?v=7"></script>
 <script>
   document.querySelectorAll('[data-sev]').forEach(function (b) {
     b.addEventListener('click', function () {
