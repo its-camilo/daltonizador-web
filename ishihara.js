@@ -54,20 +54,20 @@
     const rev = !!plate.rev;
     if (plate.kind === 'num2') {
       return {
-        font: 'bold 132px sans-serif',
+        font: 'bold 142px sans-serif',
         slots: [{ x: cx - 50, y: cy + 4 }, { x: cx + 50, y: cy + 4 }],
-        figColors: ['#37806f', '#93392b'],
-        bg: ['#84ad6f', '#93ae7c', '#74a065', '#98b26e'],
-        bgBase: '#84ad6f'
+        figColors: ['#126b55', '#a92e24'],
+        bg: ['#9abe78', '#a7c486', '#8eaf6d', '#b0c987'],
+        bgBase: '#9abe78'
       };
     }
-    const size = plate.fig.length > 1 ? 160 : 200;
+    const size = plate.fig.length > 1 ? 172 : 216;
     return {
       font: 'bold ' + size + 'px sans-serif',
       slots: [{ x: cx, y: cy + 6 }],
-      figColors: [rev ? '#3f6b4f' : '#a8622f'],
-      bg: rev ? ['#a5714f', '#96613f', '#b3805c', '#8a5638'] : ['#7fae6e', '#8fae7a', '#6f9e63', '#93b06a'],
-      bgBase: rev ? '#a5714f' : '#7fae6e'
+      figColors: [rev ? '#126b55' : '#a92e24'],
+      bg: rev ? ['#c18d60', '#b77d50', '#c99c6f', '#ae754c'] : ['#9abe78', '#a7c486', '#8eaf6d', '#b0c987'],
+      bgBase: rev ? '#c18d60' : '#9abe78'
     };
   }
 
@@ -89,7 +89,9 @@
   function maskHit(mask, W, x, y) {
     const xi = Math.max(0, Math.min(W - 1, x | 0));
     const yi = Math.max(0, Math.min(W - 1, y | 0));
-    return mask.data[(yi * W + xi) * 4 + 3] > 110;
+    // El fondo es negro opaco, por eso alpha vale 255 también fuera del texto.
+    // El canal rojo distingue el texto blanco del fondo negro.
+    return mask.data[(yi * W + xi) * 4] > 110;
   }
 
   // Puntos de plantilla para un candidato. draws: lista {text,x,y}.
@@ -347,7 +349,7 @@
       ctx.save();
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
       ctx.fillStyle = spec.bgBase; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-      const ND = 3000;
+      const ND = 4200;
       for (let i = 0; i < ND; i++) {
         const a = R() * Math.PI * 2;
         const d = Math.sqrt(R()) * (r - 4);
@@ -358,11 +360,11 @@
           let slot = 0;
           if (plate.kind === 'num2') slot = (px < cx) ? 0 : 1;
           col = spec.figColors[slot];
-          if (R() < 0.10) col = spec.bg[(R() * spec.bg.length) | 0]; // poco ruido
-        } else if (R() < 0.02) {
+          if (R() < 0.06) col = spec.bg[(R() * spec.bg.length) | 0]; // poco ruido
+        } else if (R() < 0.01) {
           col = spec.figColors[(R() * spec.figColors.length) | 0]; // poco señuelo
         }
-        disc(ctx, px, py, 2.5 + R() * 4.5, col);
+        disc(ctx, px, py, 3 + R() * 5, col);
       }
       ctx.restore();
     }

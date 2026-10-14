@@ -18,7 +18,7 @@ Host en `main.js` con WebGL2 directo.
 - `shaders/daltonizador.frag` — `srgb2lin` exacta, LMS Bradford, proyectores Brettel 1997, severidad Machado 0-1, preserva Y, `lin2srgb` exacta.
 - `diagram.js` — imagen de prueba por código. Gradientes, rampa gris, parches, par rojo-verde vulnerable 1.28:1, par azul-amarillo seguro, placas tipo Ishihara.
 - `presets.js` — 3 presets fijos al 100%: protan, deutan, tritan.
-- `ishihara.js` — test de 14 láminas generadas por código (aproximación educativa, no oficiales Kanehara). Figuras solo con puntos, sin relleno, para mayor dificultad. Números y trazos se dibujan con mouse o dedo: los dígitos se reconocen por plantillas y los trazos por cercanía a cada camino. Calcula tipo e intensidad y arma el preset propio.
+- `ishihara.js` — test de 14 láminas generadas por código (aproximación educativa, no oficiales Kanehara). Figuras solo con puntos, sin relleno. Números grandes y de alto contraste. Números y trazos se dibujan con mouse o dedo: los dígitos se reconocen por plantillas y los trazos por cercanía a cada camino. Calcula tipo e intensidad y arma el preset propio.
 
 ## Uso
 
