@@ -427,3 +427,76 @@
     };
   };
 })();
+
+// ---- Renderer de laminas con libreria open source (MIT) ----
+// Fuente: @mtillmann/ishihara v0.2.2 (vendor/ishihara-mtillmann/LICENSE).
+// Empaqueta circulos dentro del glifo con dos paletas: figura y fondo.
+// Solo para laminas numericas de una figura (no 12 ni 13, que necesitan
+// dos colores por digito). Si la libreria no carga, usa el renderer propio.
+(function () {
+  'use strict';
+  const LIB_PAL = {
+    normal: { fig: ['#a92e24', '#b8402f', '#9c2a22'], bg: ['#9abe78', '#a7c486', '#8eaf6d', '#b0c987'], dark: '#22252a' },
+    rev: { fig: ['#126b55', '#1a7d63', '#0e5a47'], bg: ['#c18d60', '#b77d50', '#c99c6f', '#ae754c'], dark: '#22252a' }
+  };
+  const cache = {};
+
+  window.libPlateCanvas = async function (plate, size) {
+    const key = plate.id + ':' + size;
+    if (cache[key]) return cache[key];
+    if (typeof window.ishihara !== 'function') return null;
+    const pal = plate.rev ? LIB_PAL.rev : LIB_PAL.normal;
+    const digits = plate.fig.length;
+    const packer = await window.ishihara({
+      text: plate.fig,
+      font: 'bold ' + (digits > 1 ? 172 : 216) + 'px sans-serif',
+      textColors: pal.fig,
+      backgroundColors: pal.bg,
+      padding: '12%',
+      margin: '6%',
+      radius: 'auto',
+      circlePackerOptions: {
+        numCircles: 2600,
+        minRadius: 3,
+        maxRadius: 9,
+        spacing: 1,
+        higherAccuracy: true,
+        useMainThread: true
+      }
+    });
+    const src = packer.asCanvas({ scale: 1 });
+    cache[key] = src;
+    return src;
+  };
+
+  // Dibuja una lamina numerica. Devuelve true si uso la libreria.
+  window.drawIshiharaLibPlate = async function (canvas, plate) {
+    if (plate.kind !== 'num') return false;
+    const W = canvas.width;
+    const src = await window.libPlateCanvas(plate, W);
+    if (!src) return false;
+    const ctx = canvas.getContext('2d');
+    const cx = W / 2, cy = W / 2, r = W / 2 - 14;
+    ctx.fillStyle = LIB_PAL.normal.dark;
+    ctx.fillRect(0, 0, W, W);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = plate.rev ? LIB_PAL.rev.bg[0] : LIB_PAL.normal.bg[0];
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    // La libreria devuelve la region del texto con margen. Se ajusta al circulo.
+    const side = r * 2;
+    ctx.drawImage(src, cx - side / 2, cy - side / 2, side, side);
+    ctx.restore();
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    return true;
+  };
+
+  // Punto de entrada usado por main.js: libreria si existe, si no el renderer propio.
+  window.drawIshiharaTestPlateAsync = async function (canvas, plate) {
+    const used = await window.drawIshiharaLibPlate(canvas, plate);
+    if (!used) window.drawIshiharaTestPlate(canvas, plate);
+    return used;
+  };
+})();

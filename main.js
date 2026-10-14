@@ -430,9 +430,20 @@ void main() {
     x.restore();
   }
 
+  // Dibuja la lamina actual (libreria o renderer propio) y luego los trazos.
+  // El token evita que una lamina vieja pise la nueva si el usuario avanza rapido.
+  function paintPlate(p, after) {
+    const token = Test.idx;
+    window.drawIshiharaTestPlateAsync(testCanvas(), p).then(function () {
+      if (Test.open && Test.idx === token) after();
+    });
+  }
+
   function redrawTestPlate() {
-    window.drawIshiharaTestPlate(testCanvas(), currentPlate());
-    drawUserStrokes();
+    paintPlate(currentPlate(), function () {
+      drawUserStrokes();
+      updateStrokeCount();
+    });
     updateStrokeCount();
   }
 
@@ -482,8 +493,7 @@ void main() {
     $('testResult').hidden = true;
     Test.strokes = Test.saved[Test.idx] || [];
     Test.cur = null;
-    window.drawIshiharaTestPlate(testCanvas(), p);
-    drawUserStrokes();
+    paintPlate(p, function () { drawUserStrokes(); updateStrokeCount(); });
     testCanvas().style.cursor = (p.kind === 'trace') ? 'crosshair' : 'default';
     startClock();
     $('testNote').textContent = 'Lamina ' + p.id + ' de 14. ' + p.note +
