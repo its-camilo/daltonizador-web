@@ -11,6 +11,8 @@
  * Severidad 0.0 a 1.0 en pasos de 0.1. Para valores intermedios se interpola
  * entre las dos matrices vecinas (aproximacion recomendada por los autores).
  * type: 0 normal, 1 protan, 2 deutan, 3 tritan.
+ * Tritan usa Brettel 1997 (ver simParams); la tabla TRITAN de Machado queda
+ * como referencia para tools/compare-models.js.
  */
 (function () {
   'use strict';
@@ -61,6 +63,39 @@
 
   const TABLE = { 1: PROTAN, 2: DEUTAN, 3: TRITAN };
 
+  // Brettel, Vienot y Mollon 1997 en RGB lineal, precalculado por libDaltonLens
+  // (dominio publico, https://github.com/DaltonLens/libDaltonLens), modelo
+  // LMS Smith-Pokorny 75 sobre sRGB. Dos semiplanos: se elige m1 si
+  // dot(rgb, n) >= 0 y m2 en caso contrario. Machado es poco preciso en tritan,
+  // por eso tritan usa Brettel. Severidad: interpolacion lineal con la identidad
+  // (equivale a hacerlo en LMS porque la transformacion es lineal).
+  const BRETTEL_TRITAN = {
+    m1: [1.01277, 0.13548, -0.14826, -0.01243, 0.86812, 0.14431, 0.07589, 0.80500, 0.11911],
+    m2: [0.93678, 0.18979, -0.12657, 0.06154, 0.81526, 0.12320, -0.37562, 1.12767, 0.24796],
+    n: [0.03901, -0.02788, -0.01113]
+  };
+
+  // Vienot 1999 (libDaltonLens), solo para comparar modelos en tools/.
+  const VIENOT = {
+    1: [0.11238, 0.88762, 0.00000, 0.11238, 0.88762, 0.00000, 0.00401, -0.00401, 1.00000],
+    2: [0.29275, 0.70725, 0.00000, 0.29275, 0.70725, 0.00000, -0.02234, 0.02234, 1.00000]
+  };
+  const BRETTEL = {
+    1: { m1: [0.14980, 1.19548, -0.34528, 0.10764, 0.84864, 0.04372, 0.00384, -0.00540, 1.00156],
+         m2: [0.14570, 1.16172, -0.30742, 0.10816, 0.85291, 0.03892, 0.00386, -0.00524, 1.00139],
+         n: [0.00048, 0.00393, -0.00441] },
+    2: { m1: [0.36477, 0.86381, -0.22858, 0.26294, 0.64245, 0.09462, -0.02006, 0.02728, 0.99278],
+         m2: [0.37298, 0.88166, -0.25464, 0.25954, 0.63506, 0.10540, -0.01980, 0.02784, 0.99196],
+         n: [-0.00281, -0.00611, 0.00892] },
+    3: BRETTEL_TRITAN
+  };
+
+  function lerpI(m, s) {
+    const out = new Array(9);
+    for (let k = 0; k < 9; k++) out[k] = I[k] * (1 - s) + m[k] * s;
+    return out;
+  }
+
   // Matriz row-major 3x3 para tipo y severidad. Interpola entre pasos de 0.1.
   function simMatrix(type, severity) {
     const tab = TABLE[type];
@@ -75,13 +110,26 @@
     return out;
   }
 
+  // Parametros que usa el shader: dos matrices y la normal del plano.
+  // Protan y deutan (Machado): m1 = m2, asi el plano no importa.
+  // Tritan (Brettel 1997): m1/m2 por semiplano, ya mezcladas con la identidad.
+  function simParams(type, severity) {
+    const s = Math.min(1, Math.max(0, Number(severity) || 0));
+    if (type === 3) {
+      return { m1: lerpI(BRETTEL_TRITAN.m1, s), m2: lerpI(BRETTEL_TRITAN.m2, s), n: BRETTEL_TRITAN.n.slice() };
+    }
+    const m = simMatrix(type, s);
+    return { m1: m, m2: m, n: [0, 0, 1] };
+  }
+
   // GLSL guarda mat3 en column-major. uniformMatrix3fv(loc, false, ...) espera
   // columnas, asi que se transpone aqui (WebGL1 no permite transpose=true).
   function toColumnMajor(m) {
     return new Float32Array([m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]]);
   }
 
-  const api = { simMatrix: simMatrix, toColumnMajor: toColumnMajor, IDENTITY: I.slice() };
+  const api = { simMatrix: simMatrix, simParams: simParams, toColumnMajor: toColumnMajor, IDENTITY: I.slice(),
+    MODELS: { BRETTEL: BRETTEL, VIENOT: VIENOT }, lerpI: lerpI };
   if (typeof window !== 'undefined') window.DALTON_MACHADO = api;
   if (typeof module !== 'undefined') module.exports = api;
 })();

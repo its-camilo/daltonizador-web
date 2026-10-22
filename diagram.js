@@ -125,7 +125,7 @@
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 18px sans-serif';
     ctx.fillText('ERROR', 44, 334);
-    ctx.fillText('1.28:1 vulnerable', 44, 358);
+    ctx.fillText('2.23:1 (deutan 1.75:1)', 44, 358);
     ctx.fillStyle = '#111';
     ctx.fillText('EXITO', 24 + (W - 48) / 2 + 28, 334);
     ctx.fillText('Usa icono + texto', 24 + (W - 48) / 2 + 28, 358);

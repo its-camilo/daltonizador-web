@@ -19,19 +19,24 @@ void main() { vTexCoord = aTexCoord; gl_Position = vec4(aPosition, 0.0, 1.0); }
   const FALLBACK_FRAG = `#version 300 es
 // daltonizador.frag
 // Simulacion de daltonismo en tiempo real. WebGL2 + GLSL ES 3.00.
-// Modelo: Machado, Oliveira, Fernandes 2009 (mismo que Chrome DevTools).
-// La matriz uSim (tipo + severidad, interpolada) se calcula en JS (machado.js)
-// y llega como un solo uniform: el shader no tiene ramas por tipo ni modo.
-// Pipeline: sRGB -> lineal (exacta) -> uSim * rgb -> clamp -> sRGB (exacta).
+// Modelos: protan y deutan con Machado, Oliveira, Fernandes 2009 (mismo que
+// Chrome DevTools); tritan con Brettel, Vienot, Mollon 1997 (dos semiplanos).
+// Las matrices (tipo + severidad) se calculan en JS (machado.js). Para Machado
+// uSim = uSim2, asi el plano no cambia nada. Sin ramas: el semiplano se elige
+// con step() y mix().
+// Pipeline: sRGB -> lineal (exacta) -> matriz -> clamp -> sRGB (exacta).
 // Referencias:
 // - NotebookLM Visual: Shading color ops, srgb2lin exacto.
 // - Machado, Oliveira, Fernandes 2009, IEEE TVCG 15(6).
+// - Brettel, Vienot, Mollon 1997, JOSA A 14(10). Matrices de libDaltonLens (dominio publico).
 // - IEC 61966-2-1 (sRGB).
 precision highp float;
 
 in vec2 vTexCoord;
 uniform sampler2D uTexture;
-uniform mat3 uSim;      // RGB lineal -> RGB lineal simulado. Identidad = sin filtro.
+uniform mat3 uSim;      // RGB lineal -> simulado. Semiplano dot(rgb, uPlane) >= 0.
+uniform mat3 uSim2;     // Semiplano dot(rgb, uPlane) < 0 (solo distinto en Brettel).
+uniform vec3 uPlane;    // Normal del plano de separacion de Brettel en RGB lineal.
 out vec4 outColor;
 
 // sRGB a lineal. Funcion piecewise exacta. No usa gamma 2.2.
@@ -48,7 +53,8 @@ vec3 lin2srgb(vec3 c) {
 void main() {
   vec4 src = texture(uTexture, vTexCoord);
   vec3 lin = srgb2lin(src.rgb);
-  vec3 sim = clamp(uSim * lin, 0.0, 1.0);
+  float side = step(0.0, dot(lin, uPlane));
+  vec3 sim = clamp(mix(uSim2 * lin, uSim * lin, side), 0.0, 1.0);
   outColor = vec4(lin2srgb(sim), 1.0);
 }
 `;
@@ -162,17 +168,25 @@ void main() {
   }
 
   const IDENTITY_CM = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-  let simCache = { key: '', m: IDENTITY_CM };
+  const NO_FILTER = { m1: IDENTITY_CM, m2: IDENTITY_CM, n: new Float32Array([0, 0, 1]) };
+  let simCache = { key: '', p: NO_FILTER };
 
-  // Matriz Machado para el estado actual (column-major). Cache por tipo+severidad.
-  function currentSimMatrix() {
-    if (!state.on || state.type === 0) return IDENTITY_CM;
+  // Parametros del shader para el estado actual (column-major). Cache por tipo+severidad.
+  function currentSimParams() {
+    if (!state.on || state.type === 0) return NO_FILTER;
     const key = state.type + ':' + state.severity;
     if (simCache.key !== key) {
       const M = window.DALTON_MACHADO;
-      simCache = { key: key, m: M.toColumnMajor(M.simMatrix(state.type, state.severity)) };
+      const p = M.simParams(state.type, state.severity);
+      simCache = { key: key, p: { m1: M.toColumnMajor(p.m1), m2: M.toColumnMajor(p.m2), n: new Float32Array(p.n) } };
     }
-    return simCache.m;
+    return simCache.p;
+  }
+
+  function setSim(p) {
+    gl.uniformMatrix3fv(loc.uSim, false, p.m1);
+    gl.uniformMatrix3fv(loc.uSim2, false, p.m2);
+    gl.uniform3fv(loc.uPlane, p.n);
   }
 
   // Tiempo de GPU por frame (ambas pasadas) con EXT_disjoint_timer_query_webgl2.
@@ -211,7 +225,7 @@ void main() {
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.uniform1i(loc.uTexture, 0);
     // En pasa 1 fuerza identidad para no contaminar.
-    gl.uniformMatrix3fv(loc.uSim, false, IDENTITY_CM);
+    setSim(NO_FILTER);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     // Pasa 2: a pantalla con filtro. Lee fboTex como sampler.
@@ -219,7 +233,7 @@ void main() {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.bindTexture(gl.TEXTURE_2D, fboTex);
     gl.uniform1i(loc.uTexture, 0);
-    gl.uniformMatrix3fv(loc.uSim, false, currentSimMatrix());
+    setSim(currentSimParams());
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.bindVertexArray(null);
   }
@@ -483,8 +497,13 @@ void main() {
     testClock = setInterval(() => {
       const s = (performance.now() - Test.t0) / 1000;
       el.textContent = '⏱ ' + s.toFixed(1) + 's';
-      el.style.background = s > 3 ? '#a02020' : '';
+      el.style.background = s * 1000 > timeLimit(currentPlate()) ? '#a02020' : '';
     }, 200);
+  }
+
+  function timeLimit(p) {
+    const L = window.ISHIHARA_TIME_LIMIT || { num: 3000, num2: 3000, trace: 10000 };
+    return L[p.kind] || 3000;
   }
 
   function stopClock() {
@@ -497,6 +516,8 @@ void main() {
     Test.answers = new Array(14).fill('');
     Test.done = null;
     Test.saved = {};
+    Test.times = new Array(14).fill(0);
+    Test.controlRetries = 0;
     $('testOverlay').hidden = false;
     $('testResult').hidden = true;
     renderTestStep();
@@ -520,8 +541,10 @@ void main() {
     paintPlate(p, function () { drawUserStrokes(); updateStrokeCount(); });
     testCanvas().style.cursor = (p.kind === 'trace') ? 'crosshair' : 'default';
     startClock();
-    $('testNote').textContent = 'Lamina ' + p.id + ' de 14. ' + p.note +
-      (p.kind === 'trace' ? ' Dibuja sobre la lamina la linea que logras seguir.' : '');
+    // No se muestra la clave de la lamina (p.note) para no sesgar la respuesta.
+    $('testNote').textContent = 'Lámina ' + p.id + ' de 14. ' +
+      (p.id === 1 ? 'Lámina de práctica: todos la ven. ' : '') +
+      (p.kind === 'trace' ? 'Dibuja la línea o líneas que logras seguir.' : 'Responde en menos de 3 segundos si puedes.');
     const q = $('testQ');
     q.innerHTML = '';
     if (p.kind === 'trace') {
@@ -564,6 +587,7 @@ void main() {
   function testNext() {
     const p = currentPlate();
     let a = Test.answers[Test.idx];
+    const elapsed = performance.now() - Test.t0;
     if (p.kind !== 'trace') {
       const tc = testCanvas();
       const hasDrawing = Test.strokes.some(function (st) { return st.length >= 4; });
@@ -577,6 +601,16 @@ void main() {
         Test.saved[Test.idx] = [];
       } else { toast('Dibuja el numero o pulsa No veo numero'); return; }
       Test.answers[Test.idx] = a;
+      // Lamina de control: todos leen 12. Un reintento antes de puntuar.
+      if (Test.idx === 0 && a !== '12' && Test.controlRetries < 1) {
+        Test.controlRetries++;
+        Test.answers[0] = '';
+        Test.strokes = []; Test.cur = null; Test.saved[0] = [];
+        redrawTestPlate();
+        startClock();
+        toast('Práctica: todos ven un número aquí. Dibújalo grande y claro.');
+        return;
+      }
     } else {
       const tc = testCanvas();
       const res = window.scoreTrace(p.id, Test.strokes, tc.width);
@@ -585,13 +619,40 @@ void main() {
       a = res;
       Test.answers[Test.idx] = a;
     }
+    Test.times[Test.idx] = elapsed;
     if (Test.idx < 13) { Test.idx++; renderTestStep(); }
     else finishTest();
   }
 
+  // Descarga un JSON con trazos, respuestas y tiempos para calibrar umbrales
+  // con un grupo de prueba (tools/calibrate-thresholds.js). Sin datos personales.
+  function exportCalibration(r) {
+    const self = window.prompt('Opcional: ¿tu visión de color conocida? (normal, protan, deutan, tritan o vacío)', '') || '';
+    const data = {
+      v: 1,
+      fecha: new Date().toISOString(),
+      visionDeclarada: self.trim().toLowerCase(),
+      respuestas: Test.answers,
+      tiemposMs: Test.times.map(function (t) { return Math.round(t); }),
+      reintentosControl: Test.controlRetries,
+      trazos: window.ISHIHARA_PLATES.map(function (p, i) { return Test.saved[i] || []; }),
+      lienzo: testCanvas().width,
+      resultado: { type: r.type, severity: r.severity, screening: r.screening, readNormal: r.readNormal, votes: r.votes }
+    };
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'ishihara-calibracion-' + Date.now() + '.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
   function finishTest() {
     stopClock();
-    Test.done = window.scoreIshihara(Test.answers);
+    Test.done = window.scoreIshihara(Test.answers, { controlRetries: Test.controlRetries });
     const r = Test.done;
     const box = $('testResult');
     box.hidden = false;
@@ -600,7 +661,13 @@ void main() {
     big.className = 'big';
     big.textContent = 'Resultado: ' + r.label + ' · ' + r.severity.toFixed(2);
     box.appendChild(big);
-    [['Detalle', r.detail], ['Nota', r.note]].forEach(function (pair) {
+    const P = window.ISHIHARA_PLATES;
+    const ts = Test.times.filter(function (t) { return t > 0; }).slice().sort(function (x, y) { return x - y; });
+    const med = ts.length ? ts[Math.floor(ts.length / 2)] : 0;
+    const slow = P.filter(function (p, i) { return Test.times[i] > timeLimit(p); }).map(function (p) { return p.id; });
+    const timing = 'Tiempo mediano por lámina: ' + (med / 1000).toFixed(1) + ' s. ' +
+      (slow.length ? 'Láminas lentas (más del límite): ' + slow.join(', ') + '.' : 'Ninguna lámina pasó el límite.');
+    [['Detalle', r.detail], ['Tiempo', timing], ['Nota', r.note]].forEach(function (pair) {
       const p = document.createElement('p');
       p.className = 'hint';
       p.textContent = pair[0] + ': ' + pair[1];
@@ -620,6 +687,10 @@ void main() {
       toast(r.type === 0 ? 'Visión normal' : 'Preset: ' + window.DALTON_TYPE_NAMES[r.type] + ' ' + r.severity.toFixed(2));
     });
     row.appendChild(bUse);
+    const bExp = document.createElement('button');
+    bExp.textContent = 'Exportar datos (calibración)';
+    bExp.addEventListener('click', () => exportCalibration(r));
+    row.appendChild(bExp);
     box.appendChild(row);
     box.scrollIntoView({ block: 'nearest' });
   }
@@ -673,6 +744,8 @@ void main() {
     }
     loc.uTexture = gl.getUniformLocation(prog, 'uTexture');
     loc.uSim = gl.getUniformLocation(prog, 'uSim');
+    loc.uSim2 = gl.getUniformLocation(prog, 'uSim2');
+    loc.uPlane = gl.getUniformLocation(prog, 'uPlane');
     gpu.ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
 
     initQuad();
