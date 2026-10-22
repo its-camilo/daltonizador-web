@@ -20,6 +20,7 @@ button, select, input[type=file] { font-size: 15px; max-width: 100%; }
 button { background: #222; color: #fff; border: 2px solid #555; border-radius: 8px; padding: 10px 12px; cursor: pointer; }
 button.primary { background: #0a7d2c; border-color: #fff; font-weight: 800; }
 button:hover { border-color: #fff; }
+button:disabled, input:disabled { opacity: .45; cursor: not-allowed; }
 label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; min-width: 0; }
 select, input[type=file] { padding: 8px; border-radius: 8px; border: 1px solid #555; background: #0e1113; color: #fff; width: 100%; }
 input[type=file] { overflow: hidden; text-overflow: ellipsis; }

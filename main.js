@@ -17,48 +17,39 @@ void main() { vTexCoord = aTexCoord; gl_Position = vec4(aPosition, 0.0, 1.0); }
   // Respaldo file://. Copia exacta de shaders/daltonizador.frag.
   // Fuente de verdad: shaders/daltonizador.frag. Si editas el .frag, copia aqui.
   const FALLBACK_FRAG = `#version 300 es
+// daltonizador.frag
+// Simulacion de daltonismo en tiempo real. WebGL2 + GLSL ES 3.00.
+// Modelo: Machado, Oliveira, Fernandes 2009 (mismo que Chrome DevTools).
+// La matriz uSim (tipo + severidad, interpolada) se calcula en JS (machado.js)
+// y llega como un solo uniform: el shader no tiene ramas por tipo ni modo.
+// Pipeline: sRGB -> lineal (exacta) -> uSim * rgb -> clamp -> sRGB (exacta).
+// Referencias:
+// - NotebookLM Visual: Shading color ops, srgb2lin exacto.
+// - Machado, Oliveira, Fernandes 2009, IEEE TVCG 15(6).
+// - IEC 61966-2-1 (sRGB).
 precision highp float;
+
 in vec2 vTexCoord;
 uniform sampler2D uTexture;
-uniform int uMode;
-uniform int uType;
-uniform float uSeverity;
-uniform float uSplit;
+uniform mat3 uSim;      // RGB lineal -> RGB lineal simulado. Identidad = sin filtro.
 out vec4 outColor;
-vec3 srgb2lin(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
-vec3 lin2srgb(vec3 c) { c = clamp(c, 0.0, 1.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
-float luminanceY(vec3 lin) { return 0.2126 * lin.r + 0.7152 * lin.g + 0.0722 * lin.b; }
-const mat3 RGB2LMS = mat3(0.8951, -0.7502, 0.0389, 0.2664, 1.7135, -0.0685, -0.1614, 0.0367, 1.0296);
-const mat3 LMS2RGB = mat3(0.986992, 0.432305, -0.008528, -0.147054, 0.518360, 0.040042, 0.159962, 0.049291, 0.968486);
-mat3 projectorForType(int t) {
-  if (t == 1) { return mat3(0.0, 0.0, 0.0, 2.02344, 1.0, 0.0, -2.52581, 0.0, 1.0); }
-  else if (t == 2) { return mat3(1.0, 0.494207, 0.0, 0.0, 0.0, 0.0, 0.0, 1.24827, 1.0); }
-  else if (t == 3) { return mat3(1.0, 0.0, -0.395913, 0.0, 1.0, 0.801109, 0.0, 0.0, 0.0); }
-  return mat3(1.0);
+
+// sRGB a lineal. Funcion piecewise exacta. No usa gamma 2.2.
+vec3 srgb2lin(vec3 c) {
+  return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
 }
+
+// Lineal a sRGB. Funcion piecewise exacta.
+vec3 lin2srgb(vec3 c) {
+  c = clamp(c, 0.0, 1.0);
+  return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+}
+
 void main() {
-  vec3 srgb = texture(uTexture, vTexCoord).rgb;
-  vec3 lin = srgb2lin(srgb);
-  vec3 lms = RGB2LMS * lin;
-  mat3 P = projectorForType(uType);
-  vec3 lmsSimFull = (uType == 0) ? lms : P * lms;
-  vec3 lmsMix = mix(lms, lmsSimFull, clamp(uSeverity, 0.0, 1.0));
-  vec3 rgbSimLin = clamp(LMS2RGB * lmsMix, 0.0, 1.0);
-  vec3 err = lin - rgbSimLin;
-  vec3 corr = lin;
-  float s = clamp(uSeverity, 0.0, 1.0);
-  if (uType == 1) { corr.g += err.r * 0.30 * s; corr.b += err.r * 0.70 * s; }
-  else if (uType == 2) { corr.r += err.g * 0.30 * s; corr.b += err.g * 0.70 * s; }
-  else if (uType == 3) { corr.r += err.b * 0.50 * s; corr.g += err.b * 0.30 * s; }
-  float yOrig = luminanceY(lin);
-  float yCorr = luminanceY(corr);
-  corr = clamp(corr + (yOrig - yCorr), 0.0, 1.0);
-  vec3 result;
-  if (uMode == 1) { result = lin2srgb(rgbSimLin); }
-  else if (uMode == 2) { result = (uType == 0) ? srgb : lin2srgb(corr); }
-  else { result = srgb; }
-  if (uSplit > 0.5 && vTexCoord.x < 0.5) { result = srgb; }
-  outColor = vec4(result, 1.0);
+  vec4 src = texture(uTexture, vTexCoord);
+  vec3 lin = srgb2lin(src.rgb);
+  vec3 sim = clamp(uSim * lin, 0.0, 1.0);
+  outColor = vec4(lin2srgb(sim), 1.0);
 }
 `;
 
@@ -67,7 +58,11 @@ void main() {
   let tex = null, fbo = null, fboTex = null;
   let srcCanvas = null, videoEl = null, useVideo = false;
   let loc = {};
-  let state = { mode: 1, type: 2, severity: 0.8, split: false, on: true };
+  // Modo unico: simulacion. El preset es el tipo; la intensidad es independiente.
+  let state = { type: 2, severity: 0.8, on: true };
+  const PROFILE_KEY = 'dalton.perfil';
+  const PROFILE_VERSION = 2;
+  let gpu = { ext: null, query: null, pending: false, ms: null, frame: 0 };
   let vsSrcUsed = '', fsSrcUsed = '';
   let frames = 0, lastT = performance.now(), fps = 0;
 
@@ -166,6 +161,43 @@ void main() {
     $('res').textContent = canvas.width + 'x' + canvas.height;
   }
 
+  const IDENTITY_CM = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+  let simCache = { key: '', m: IDENTITY_CM };
+
+  // Matriz Machado para el estado actual (column-major). Cache por tipo+severidad.
+  function currentSimMatrix() {
+    if (!state.on || state.type === 0) return IDENTITY_CM;
+    const key = state.type + ':' + state.severity;
+    if (simCache.key !== key) {
+      const M = window.DALTON_MACHADO;
+      simCache = { key: key, m: M.toColumnMajor(M.simMatrix(state.type, state.severity)) };
+    }
+    return simCache.m;
+  }
+
+  // Tiempo de GPU por frame (ambas pasadas) con EXT_disjoint_timer_query_webgl2.
+  // Solo si el navegador lo expone (Chrome de escritorio suele hacerlo).
+  function gpuBegin() {
+    if (!gpu.ext || gpu.pending) return false;
+    if (gpu.frame++ % 30 !== 0) return false;
+    gpu.query = gl.createQuery();
+    gl.beginQuery(gpu.ext.TIME_ELAPSED_EXT, gpu.query);
+    return true;
+  }
+
+  function gpuEnd(started) {
+    if (started) { gl.endQuery(gpu.ext.TIME_ELAPSED_EXT); gpu.pending = true; }
+    if (!gpu.pending) return;
+    const ready = gl.getQueryParameter(gpu.query, gl.QUERY_RESULT_AVAILABLE);
+    const disjoint = gl.getParameter(gpu.ext.GPU_DISJOINT_EXT);
+    if (ready || disjoint) {
+      if (ready && !disjoint) gpu.ms = gl.getQueryParameter(gpu.query, gl.QUERY_RESULT) / 1e6;
+      gl.deleteQuery(gpu.query);
+      gpu.query = null;
+      gpu.pending = false;
+    }
+  }
+
   function draw() {
     resize();
     const canvas = $('gl');
@@ -178,11 +210,8 @@ void main() {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.uniform1i(loc.uTexture, 0);
-    // En pasa 1 fuerza original para no contaminar.
-    gl.uniform1i(loc.uMode, 0);
-    gl.uniform1i(loc.uType, 0);
-    gl.uniform1f(loc.uSeverity, 0);
-    gl.uniform1f(loc.uSplit, 0);
+    // En pasa 1 fuerza identidad para no contaminar.
+    gl.uniformMatrix3fv(loc.uSim, false, IDENTITY_CM);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     // Pasa 2: a pantalla con filtro. Lee fboTex como sampler.
@@ -190,10 +219,7 @@ void main() {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.bindTexture(gl.TEXTURE_2D, fboTex);
     gl.uniform1i(loc.uTexture, 0);
-    gl.uniform1i(loc.uMode, state.on ? state.mode : 0);
-    gl.uniform1i(loc.uType, state.type);
-    gl.uniform1f(loc.uSeverity, state.severity);
-    gl.uniform1f(loc.uSplit, state.split ? 1 : 0);
+    gl.uniformMatrix3fv(loc.uSim, false, currentSimMatrix());
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.bindVertexArray(null);
   }
@@ -204,38 +230,46 @@ void main() {
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoEl);
     }
+    const g = gpuBegin();
     draw();
+    gpuEnd(g);
     frames++;
     const now = performance.now();
     if (now - lastT >= 500) {
       fps = Math.round((frames * 1000) / (now - lastT));
       frames = 0;
       lastT = now;
-      $('fps').textContent = fps + ' fps';
+      $('fps').textContent = fps + ' fps' + (gpu.ms != null ? ' · GPU ' + gpu.ms.toFixed(2) + ' ms' : '');
     }
     requestAnimationFrame(loop);
   }
 
   function saveProfile() {
     try {
-      localStorage.setItem('dalton.perfil', JSON.stringify({ type: state.type, severity: state.severity }));
-      localStorage.setItem('dalton.ui', JSON.stringify({ mode: state.mode, split: state.split }));
+      localStorage.setItem(PROFILE_KEY, JSON.stringify({ v: PROFILE_VERSION, type: state.type, severity: state.severity }));
     } catch (e) { /* modo privado */ }
   }
 
+  // Valida el perfil guardado. Acepta v2 y migra v1 (type + severity).
+  // Datos corruptos o fuera de rango se descartan. Devuelve true si habia perfil valido.
   function loadProfile() {
     try {
-      const p = JSON.parse(localStorage.getItem('dalton.perfil') || 'null');
-      if (p && typeof p.type === 'number') {
-        state.type = p.type;
-        state.severity = p.severity;
+      localStorage.removeItem('dalton.ui'); // esquema v1: el modo ya no se guarda
+      const p = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
+      const okType = p && Number.isInteger(p.type) && p.type >= 0 && p.type <= 3;
+      const okSev = p && typeof p.severity === 'number' && isFinite(p.severity) && p.severity >= 0 && p.severity <= 1;
+      if (!okType || !okSev) {
+        if (p !== null) localStorage.removeItem(PROFILE_KEY);
+        return false;
       }
-      const u = JSON.parse(localStorage.getItem('dalton.ui') || 'null');
-      if (u && typeof u.mode === 'number') {
-        state.mode = u.mode;
-      }
-      state.split = false; // vista dividida eliminada: siempre imagen completa
-    } catch (e) { /* ignora */ }
+      state.type = p.type;
+      state.severity = p.severity;
+      if (p.v !== PROFILE_VERSION) saveProfile();
+      return true;
+    } catch (e) {
+      try { localStorage.removeItem(PROFILE_KEY); } catch (e2) { /* ignora */ }
+      return false;
+    }
   }
 
   function toast(msg) {
@@ -246,45 +280,37 @@ void main() {
   }
 
   function syncUI() {
-    $('mode').value = String(state.mode);
-    $('type').value = String(state.type);
+    const names = window.DALTON_TYPE_NAMES;
+    const normal = state.type === 0;
+    // El preset refleja solo el tipo: con intensidad 0 sigue en el mismo preset.
+    const p = (window.DALTON_PRESETS || []).find((x) => x.type === state.type);
+    if (p) $('preset').value = p.id;
     $('severity').value = String(state.severity);
-    $('sevVal').textContent = Number(state.severity).toFixed(2);
+    $('severity').disabled = normal;
+    document.querySelectorAll('[data-sev]').forEach((b) => { b.disabled = normal; });
+    $('sevVal').textContent = normal ? '—' : Number(state.severity).toFixed(2);
     $('btnOn').textContent = state.on ? 'Filtro: ON' : 'Filtro: OFF';
-    const names = { 0: 'Normal', 1: 'Protan', 2: 'Deutan', 3: 'Tritan' };
-    const modes = { 0: 'Original', 1: 'Simulacion', 2: 'Correccion' };
-    $('hudState').textContent = modes[state.mode] + ' · ' + names[state.type] + ' ' + Number(state.severity).toFixed(2);
-    // Sincroniza el preset si el estado coincide con uno conocido.
-    const sel = $('preset');
-    if (sel && sel.options.length) {
-      const hit = (window.DALTON_PRESETS || []).find((p) =>
-        p.mode === state.mode && p.type === state.type &&
-        Math.abs(p.severity - state.severity) < 1e-6 && p.split === state.split);
-      sel.value = hit ? hit.id : '';
-    }
+    $('hudState').textContent = !state.on ? 'Filtro OFF · original'
+      : normal ? 'Visión normal'
+      : 'Simulación · ' + names[state.type] + ' ' + Number(state.severity).toFixed(2);
   }
 
+  // Cambia solo el tipo. La intensidad del slider se conserva.
   function applyPreset(id) {
     const p = (window.DALTON_PRESETS || []).find((x) => x.id === id);
     if (!p) return;
-    state.mode = p.mode;
     state.type = p.type;
-    state.severity = p.severity;
-    state.split = p.split;
     state.on = true;
     saveProfile();
     syncUI();
-    toast('Preset: ' + p.nombre);
-    log('Preset aplicado: ' + p.id + ' ' + p.descripcion);
+    toast(p.type === 0 ? p.nombre : p.nombre + ' ' + Number(state.severity).toFixed(2));
+    log('Preset aplicado: ' + p.id + '. ' + p.descripcion);
   }
 
   function bindUI() {
     const presets = window.DALTON_PRESETS || [];
     const sel = $('preset');
-    const ph = document.createElement('option');
-    ph.value = '';
-    ph.textContent = '— Elige preset —';
-    sel.appendChild(ph);
+    sel.innerHTML = '';
     presets.forEach((p) => {
       const o = document.createElement('option');
       o.value = p.id;
@@ -293,8 +319,6 @@ void main() {
     });
     sel.addEventListener('change', () => applyPreset(sel.value));
 
-    $('mode').addEventListener('change', (e) => { state.mode = +e.target.value; saveProfile(); syncUI(); });
-    $('type').addEventListener('change', (e) => { state.type = +e.target.value; saveProfile(); syncUI(); });
     $('severity').addEventListener('input', (e) => { state.severity = +e.target.value; saveProfile(); syncUI(); });
     $('btnOn').addEventListener('click', () => {
       state.on = !state.on;
@@ -586,29 +610,16 @@ void main() {
     row.className = 'row';
     const bUse = document.createElement('button');
     bUse.className = 'primary';
-    bUse.textContent = 'Usar mi preset (correccion)';
+    bUse.textContent = r.type === 0 ? 'Usar mi resultado (Visión normal)'
+      : 'Usar mi resultado (' + window.DALTON_TYPE_NAMES[r.type] + ' ' + r.severity.toFixed(2) + ')';
     bUse.addEventListener('click', () => {
       state.type = r.type;
-      state.severity = r.severity;
-      state.mode = 2;
-      state.split = false;
+      if (r.type !== 0) state.severity = r.severity;
       state.on = true;
       saveProfile(); syncUI(); closeTest();
-      toast('Preset propio: ' + r.typeName + ' ' + r.severity.toFixed(2));
-    });
-    const bSim = document.createElement('button');
-    bSim.textContent = 'Probar simulacion';
-    bSim.addEventListener('click', () => {
-      state.type = r.type === 0 ? 2 : r.type;
-      state.severity = r.type === 0 ? 1.0 : r.severity;
-      state.mode = 1;
-      state.split = false;
-      state.on = true;
-      saveProfile(); syncUI(); closeTest();
-      toast('Simulacion lista');
+      toast(r.type === 0 ? 'Visión normal' : 'Preset: ' + window.DALTON_TYPE_NAMES[r.type] + ' ' + r.severity.toFixed(2));
     });
     row.appendChild(bUse);
-    row.appendChild(bSim);
     box.appendChild(row);
     box.scrollIntoView({ block: 'nearest' });
   }
@@ -642,7 +653,7 @@ void main() {
       log('WebGL2 no disponible. Usa Chrome, Brave o Safari reciente.');
       return;
     }
-    loadProfile();
+    const hadProfile = loadProfile();
     // UNPACK_FLIP_Y global. Corrige orientacion de Canvas2D y video.
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     // Carga shaders .vert y .frag independientes. Fallback embebido si file://.
@@ -661,10 +672,8 @@ void main() {
       throw new Error(gl.getProgramInfoLog(prog));
     }
     loc.uTexture = gl.getUniformLocation(prog, 'uTexture');
-    loc.uMode = gl.getUniformLocation(prog, 'uMode');
-    loc.uType = gl.getUniformLocation(prog, 'uType');
-    loc.uSeverity = gl.getUniformLocation(prog, 'uSeverity');
-    loc.uSplit = gl.getUniformLocation(prog, 'uSplit');
+    loc.uSim = gl.getUniformLocation(prog, 'uSim');
+    gpu.ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
 
     initQuad();
     makeTexture();
@@ -681,7 +690,7 @@ void main() {
     window.addEventListener('resize', resize);
     // Primer uso sin perfil: abre el test para armar el preset propio.
     try {
-      if (!localStorage.getItem('dalton.perfil')) {
+      if (!hadProfile) {
         log('Primer uso. Haz el test Ishihara para armar tu preset.');
         openTest();
       }

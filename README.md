@@ -15,11 +15,15 @@ Host en `main.js` con WebGL2 directo.
 - `style.css` — texto grande, alto contraste.
 - `main.js` — host: quad NDC, textura, FBO, loop `requestAnimationFrame`.
 - `shaders/daltonizador.vert` — passthrough NDC, sin matrices.
-- `shaders/daltonizador.frag` — `srgb2lin` exacta, LMS Bradford, proyectores Brettel 1997, severidad Machado 0-1, preserva Y, `lin2srgb` exacta.
+- `shaders/daltonizador.frag` — `srgb2lin` exacta, `uniform mat3 uSim` (Machado 2009) sobre RGB lineal, `lin2srgb` exacta. Sin ramas por tipo ni modo.
+- `machado.js` — 33 matrices de Machado, Oliveira y Fernandes 2009 (protan, deutan, tritan; severidad 0.0-1.0 en pasos de 0.1). Interpola entre vecinas y entrega la matriz column-major para `uniformMatrix3fv`. Mismo modelo que Chrome DevTools.
 - `diagram.js` — imagen de prueba por código. Gradientes, rampa gris, parches, par rojo-verde vulnerable 1.28:1, par azul-amarillo seguro, placas tipo Ishihara.
-- `presets.js` — 3 presets fijos al 100%: protan, deutan, tritan.
+- `presets.js` — presets de tipo: Visión normal, Protan, Deutan, Tritan. La intensidad es independiente y se conserva al cambiar de preset.
+- `digits-q.js` — reconoce los números dibujados con el reconocedor $Q (nube de puntos, multitrazo, invariante a orden y dirección). Separa números de dos cifras por hueco horizontal.
+- `vendor/qdollar/` — $Q Super-Quick Recognizer, versión JavaScript oficial (New BSD, Vatavu, Anthony, Wobbrock; port de N. Magrofuoco), envuelto en un IIFE sin cambios.
+- `tools/check-matrices.js` y `tools/check-digits.js` — verificaciones con `node`: blanco/grises conservados, colapso del par rojo-verde, precisión del reconocedor con trazos sintéticos.
 - `vendor/ishihara-mtillmann/` — copia sin cambios de `@mtillmann/ishihara` v0.2.2 (MIT, Martin Tillmann). Empaqueta puntos dentro de la figura para las láminas de una cifra. Ver `LICENSE` del directorio.
-- `ishihara.js` — test de 14 láminas generadas por código (aproximación educativa, no oficiales Kanehara). Figuras solo con puntos, sin relleno. Números grandes y de alto contraste. Números y trazos se dibujan con mouse o dedo: los dígitos se reconocen por plantillas y los trazos por cercanía a cada camino. Calcula tipo e intensidad y arma el preset propio.
+- `ishihara.js` — test de 14 láminas generadas por código (aproximación educativa, no oficiales Kanehara). Figuras solo con puntos, sin relleno. Números grandes y de alto contraste. Números y trazos se dibujan con mouse o dedo: los dígitos se reconocen con $Q y los trazos por cercanía a cada camino. Calcula tipo e intensidad y arma el preset propio.
 
 ## Uso
 
@@ -40,13 +44,13 @@ Controles:
 - Botón ON/OFF + tecla `F` local. Sin tecla global del SO.
 - Test Ishihara con 14 láminas: dibuja con mouse o dedo el número que ves (se reconoce por plantillas) o el trazo que sigues en láminas 11 y 14. Sin omitir en primer uso. Al final arma tu preset (tipo + intensidad) y lo guarda en `localStorage`.
 - Botón de shaders: popup con el vertex y fragment GLSL en uso, con copiar.
-- 3 presets fijos al 100% para referencia rápida. Cada preset afecta toda la imagen. La vista dividida queda como opción manual.
-- Modo 0 original / 1 simulación / 2 corrección.
-- Tipo 0 normal / 1 protan / 2 deutan / 3 tritan.
-- Severidad 0.0 a 1.0. Fórmula `Final = Identidad*(1-s) + Tipo*s`.
-- Vista dividida: izquierda original, derecha filtrada.
+- Modo único: simulación (Machado 2009). La corrección pasa al ítem 3 del trabajo a futuro.
+- Preset = tipo de visión: Visión normal, Protan, Deutan, Tritan. Sin opción "Elige preset".
+- Intensidad 0.0 a 1.0 independiente del preset: con intensidad 0 el preset se mantiene (la imagen se ve sin filtro). Con Visión normal el slider se desactiva.
+- Al terminar el test, "Usar mi resultado" deja Visión normal o Protan/Deutan/Tritan con la intensidad calculada.
+- HUD con fps y tiempo de GPU por frame (si el navegador expone `EXT_disjoint_timer_query_webgl2`).
 - Cargar imagen PNG/JPEG local. Cargar video local para Fase B.
-- Perfil se guarda en `localStorage`.
+- Perfil se guarda en `localStorage` con esquema versionado (`v: 2`); datos corruptos se descartan.
 
 ## Fases
 
@@ -60,7 +64,7 @@ Controles:
 2. Pasa 2 a pantalla. Lee FBO como `sampler2D`.
 3. Quad pantalla completa en NDC -1 a 1.
 4. `texture(uTexture, vTexCoord)` por fragmento.
-5. Decodifica, convierte a LMS, aplica matriz, preserva Y, recodifica.
+5. Decodifica a lineal, aplica `uSim` (Machado), recorta a [0,1], recodifica a sRGB.
 
 ## Validación
 
@@ -75,5 +79,6 @@ Controles:
 - Propuesta Proyecto 1: Daltonizador GLSL.
 - Ishihara Instructions 14 plates, Kanehara.
 - Brettel, Vienot, Mollon 1997.
-- Machado, Oliveira, Fernandes 2009.
+- Machado, Oliveira, Fernandes 2009. https://www.inf.ufrgs.br/~oliveira/pubs_files/CVD_Simulation/CVD_Simulation.html
+- Vatavu, Anthony, Wobbrock 2018. $Q Super-Quick Recognizer. https://depts.washington.edu/acelab/proj/dollar/qdollar.html
 - W3C WCAG 2.1.
