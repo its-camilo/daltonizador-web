@@ -170,7 +170,7 @@
   window.__matchNorm = normPts;
   window.__matchCov = coverageOf;
 
-  // Reconoce el numero dibujado por comparacion con plantillas.
+  // Reconoce el numero dibujado. Usa $Q si esta disponible; si no, plantillas por cobertura.
   // Normaliza dibujo y plantilla: vale dibujar grande, pequeño o movido.
   // Devuelve el candidato ('8', '70', 'noveo', ...) o null si no hay dibujo.
   window.scoreDrawnNumber = function (plateId, strokes, S) {
@@ -191,6 +191,12 @@
     const W = 420;
     const plate = window.ISHIHARA_PLATES.filter(function (p) { return p.id === plateId; })[0];
     if (!plate) return null;
+    // Reconocedor principal: $Q (digits-q.js). Las plantillas por cobertura
+    // de abajo quedan solo como respaldo si vendor/qdollar no carga.
+    if (window.DigitsQ && window.QDollar) {
+      const res = window.DigitsQ.read(use, plateCandidates(plate), plate.normal || '');
+      return res.text;
+    }
     const spec = figureSpec(plate, W);
     const NF = normPts(flat, 300);
     const tol = 0.45;
