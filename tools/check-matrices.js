@@ -19,11 +19,12 @@ const check = (ok, msg) => { console.log((ok ? 'OK   ' : 'FALLA') + ' ' + msg); 
 for (const t of [1, 2, 3]) {
   let worst = 0;
   for (let s = 0; s <= 1.0001; s += 0.05) {
-    const m = M.simMatrix(t, s);
-    for (let r = 0; r < 3; r++) worst = Math.max(worst, Math.abs(m[r * 3] + m[r * 3 + 1] + m[r * 3 + 2] - 1));
+    const p = M.simParams(t, s); // lo que recibe el shader (tritan = Brettel)
+    for (const m of [p.m1, p.m2]) for (let r = 0; r < 3; r++) worst = Math.max(worst, Math.abs(m[r * 3] + m[r * 3 + 1] + m[r * 3 + 2] - 1));
   }
   check(worst < 2e-3, 'tipo ' + t + ': blanco/grises conservados (error max ' + worst.toExponential(2) + ')');
-  check(M.simMatrix(t, 0).every((v, i) => v === M.IDENTITY[i]), 'tipo ' + t + ': severidad 0 = identidad');
+  const p0 = M.simParams(t, 0);
+  check([p0.m1, p0.m2].every((m) => m.every((v, i) => Math.abs(v - M.IDENTITY[i]) < 1e-12)), 'tipo ' + t + ': severidad 0 = identidad');
 }
 
 const pairs = [

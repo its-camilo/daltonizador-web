@@ -2,8 +2,9 @@
  * Test interactivo de 14 laminas estilo Ishihara.
  * Laminas generadas por codigo como APROXIMACION educativa.
  * No reemplazan las oficiales Kanehara ni un diagnostico medico.
- * Clave de respuestas segun Ishihara Instructions 14 plates:
- * 1:12 todos. 2:8/3. 3:5/2. 4:29/70. 5:74/21. 6-8: solo normal.
+ * Clave de respuestas segun Ishihara Instructions, Concise Edition 14 plates (Kanehara):
+ * https://web.stanford.edu/group/vista/wikiupload/0/0a/Ishihara.14.Plate.Instructions.pdf
+ * 1:12 todos. 2:8/3. 3:5/2. 4:29/70. 5:74/21. 6:7 y 7:45 solo normal. 8:2 solo normal.
  * 9: invertida (normal no la ve, deficiente ve 2). 10:16/nada.
  * 11: trazo. 12:35/5 protan fuerte/3 deutan fuerte.
  * 13:96/6 protan/9 deutan. 14: trazo doble.
@@ -18,8 +19,8 @@
     { id: 3, kind: 'num', fig: '5', normal: '5', rg: '2', note: 'Normal 5. Deficiencia 2.' },
     { id: 4, kind: 'num', fig: '29', normal: '29', rg: '70', note: 'Normal 29. Deficiencia 70.' },
     { id: 5, kind: 'num', fig: '74', normal: '74', rg: '21', note: 'Normal 74. Deficiencia 21.' },
-    { id: 6, kind: 'num', fig: '6', normal: '6', rg: '', note: 'Solo vision normal la lee.' },
-    { id: 7, kind: 'num', fig: '3', normal: '3', rg: '', note: 'Solo vision normal la lee.' },
+    { id: 6, kind: 'num', fig: '7', normal: '7', rg: '', note: 'Solo vision normal la lee.' },
+    { id: 7, kind: 'num', fig: '45', normal: '45', rg: '', note: 'Solo vision normal la lee.' },
     { id: 8, kind: 'num', fig: '2', normal: '2', rg: '', note: 'Normal 2. Deficiencia no la ve.' },
     { id: 9, kind: 'num', fig: '2', rev: true, normal: '', rg: '2', note: 'Invertida. Normal casi no la ve. Deficiencia ve 2.' },
     { id: 10, kind: 'num', fig: '16', normal: '16', rg: '', note: 'Normal 16. Deficiencia no la ve.' },
@@ -52,22 +53,28 @@
   function figureSpec(plate, W) {
     const cx = W / 2, cy = W / 2;
     const rev = !!plate.rev;
+    const PAL = window.ISHIHARA_PALETTES;
     if (plate.kind === 'num2') {
+      // Digito izquierdo oculto para protan, derecho oculto para deutan
+      // (35: protan lee 5, deutan lee 3; 96: protan lee 6, deutan lee 9).
       return {
         font: 'bold 142px sans-serif',
         slots: [{ x: cx - 50, y: cy + 4 }, { x: cx + 50, y: cy + 4 }],
-        figColors: ['#126b55', '#a92e24'],
-        bg: ['#9abe78', '#a7c486', '#8eaf6d', '#b0c987'],
-        bgBase: '#9abe78'
+        figColors: PAL ? [PAL.num2.left, PAL.num2.right] : [['#126b55'], ['#a92e24']],
+        bg: PAL ? PAL.num2.bg : ['#9abe78', '#a7c486', '#8eaf6d', '#b0c987'],
+        bgBase: PAL ? PAL.num2.bgBase : '#9abe78'
       };
     }
     const size = plate.fig.length > 1 ? 172 : 216;
+    // La invertida (9) conserva su paleta: ninguna paleta puede ser visible
+    // para un dicromata y no para vision normal solo por color (ver README).
+    const usePal = PAL && !rev;
     return {
       font: 'bold ' + size + 'px sans-serif',
       slots: [{ x: cx, y: cy + 6 }],
-      figColors: [rev ? '#126b55' : '#a92e24'],
-      bg: rev ? ['#c18d60', '#b77d50', '#c99c6f', '#ae754c'] : ['#9abe78', '#a7c486', '#8eaf6d', '#b0c987'],
-      bgBase: rev ? '#c18d60' : '#9abe78'
+      figColors: [usePal ? PAL.num.fig : [rev ? '#126b55' : '#a92e24']],
+      bg: usePal ? PAL.num.bg : (rev ? ['#c18d60', '#b77d50', '#c99c6f', '#ae754c'] : ['#9abe78', '#a7c486', '#8eaf6d', '#b0c987']),
+      bgBase: usePal ? PAL.num.bgBase : (rev ? '#c18d60' : '#9abe78')
     };
   }
 
@@ -237,13 +244,14 @@
   // Trazos de las laminas 11 y 14 en coordenadas relativas (-100..100).
   // Cada trazo es una lista de segmentos quadraticos [p0,p1,p2].
   function traceDef(id) {
+    const PAL = window.ISHIHARA_PALETTES;
     if (id === 11) return [
-      { color: '#3f7f7a', segs: [[[-90, 80], [-30, -90], [40, -20]], [[40, -20], [90, -80], [60, 70]]] },
-      { color: '#a05a4a', segs: [[[-95, -60], [0, 40], [95, 50]]] }
+      { color: PAL ? PAL.trace11.a : ['#3f7f7a'], segs: [[[-90, 80], [-30, -90], [40, -20]], [[40, -20], [90, -80], [60, 70]]] },
+      { color: PAL ? PAL.trace11.b : ['#a05a4a'], segs: [[[-95, -60], [0, 40], [95, 50]]] }
     ];
     return [
-      { color: '#7a4a8c', segs: [[[-95, 60], [-20, -80], [30, 0]], [[30, 0], [95, -40], [60, 60]]] },
-      { color: '#a04a3a', segs: [[[-95, -40], [0, 60], [40, 10]], [[40, 10], [95, 70], [20, 80]]] }
+      { color: PAL ? PAL.trace14.purple : ['#7a4a8c'], segs: [[[-95, 60], [-20, -80], [30, 0]], [[30, 0], [95, -40], [60, 60]]] },
+      { color: PAL ? PAL.trace14.red : ['#a04a3a'], segs: [[[-95, -40], [0, 60], [40, 10]], [[40, 10], [95, 70], [20, 80]]] }
     ];
   }
 
@@ -266,7 +274,7 @@
     scaledTracePaths(id, W).forEach(function (path) {
       for (let i = 0; i < path.pts.length; i += 2) {
         const p = path.pts[i];
-        disc(ctx, p[0] + (R() - 0.5) * 4, p[1] + (R() - 0.5) * 4, 4 + R() * 4, path.color);
+        disc(ctx, p[0] + (R() - 0.5) * 4, p[1] + (R() - 0.5) * 4, 4 + R() * 4, path.color[(R() * path.color.length) | 0]);
       }
     });
   }
@@ -332,15 +340,17 @@
     if (plate.kind === 'trace' && plate.id === 11) {
       ctx.save();
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
-      ctx.fillStyle = '#8fa07a'; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-      dotField(ctx, cx, cy, r, R, 700, ['#8fa07a', '#7d9268', '#9db088', '#6f845e']);
+      const P11 = window.ISHIHARA_PALETTES;
+      ctx.fillStyle = P11 ? P11.trace11.bgBase : '#8fa07a'; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+      dotField(ctx, cx, cy, r, R, 700, P11 ? P11.trace11.bg : ['#8fa07a', '#7d9268', '#9db088', '#6f845e']);
       drawTracePaths(ctx, 11, W, R);
       ctx.restore();
     } else if (plate.kind === 'trace' && plate.id === 14) {
       ctx.save();
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
-      ctx.fillStyle = '#8b8f7a'; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-      dotField(ctx, cx, cy, r, R, 700, ['#8b8f7a', '#7c8069', '#9aa086', '#6f735f']);
+      const P14 = window.ISHIHARA_PALETTES;
+      ctx.fillStyle = P14 ? P14.trace14.bgBase : '#8b8f7a'; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+      dotField(ctx, cx, cy, r, R, 700, P14 ? P14.trace14.bg : ['#8b8f7a', '#7c8069', '#9aa086', '#6f735f']);
       drawTracePaths(ctx, 14, W, R);
       ctx.restore();
     } else {
@@ -365,10 +375,12 @@
           // Identifica digito para bicolor en num2.
           let slot = 0;
           if (plate.kind === 'num2') slot = (px < cx) ? 0 : 1;
-          col = spec.figColors[slot];
+          const fp = spec.figColors[slot];
+          col = fp[(R() * fp.length) | 0];
           if (R() < 0.06) col = spec.bg[(R() * spec.bg.length) | 0]; // poco ruido
         } else if (R() < 0.01) {
-          col = spec.figColors[(R() * spec.figColors.length) | 0]; // poco señuelo
+          const dp = spec.figColors[(R() * spec.figColors.length) | 0];
+          col = dp[(R() * dp.length) | 0]; // poco señuelo
         }
         disc(ctx, px, py, 3 + R() * 5, col);
       }
@@ -380,56 +392,92 @@
     return canvas;
   };
 
-  // answers: arreglo de 14 strings. Numero normalizado o 'noveo' o indice de trazo.
-  // Devuelve {type, severity, label, errors, detail, note}.
-  window.scoreIshihara = function (answers) {
+  // Tiempo maximo por lamina (no bloquea; solo marca la respuesta como lenta).
+  // Numeros: 3 s, regla de las instrucciones Kanehara. Trazos: 10 s, criterio
+  // del proyecto (las instrucciones no fijan tiempo para trazar).
+  window.ISHIHARA_TIME_LIMIT = { num: 3000, num2: 3000, trace: 10000 };
+
+  // Puntuacion en tres etapas, siguiendo las instrucciones Kanehara (14 laminas).
+  // answers: 14 strings (numero leido, 'noveo' o indice de opcion de trazo).
+  // opts.controlRetries: veces que se repitio la lamina 1.
+  //
+  // Etapa 1 · Control (lamina 1): todos leen 12. Si no, el resultado es poco fiable.
+  // Etapa 2 · Tamizaje rojo-verde (laminas 1-11): N = laminas leidas como normal.
+  //   N >= 10 normal; N <= 7 deficiencia; 8-9 no concluyente (Kanehara pide otras
+  //   pruebas, p. ej. anomaloscopio). Lamina 9: solo es anormal si lee 2 Y no leyo
+  //   bien la 8 (aproxima "la lee mas facil que la 8").
+  // Etapa 3 · Tipo y severidad (laminas 12-14), solo si la etapa 2 no da normal:
+  //   12: protan fuerte lee 5, deutan fuerte lee 3. 13: protan 6, deutan 9.
+  //   14: protan solo traza la morada, deutan solo la roja. Cada indicio fuerte suma 2.
+  //   Leer 35/96 completo o trazar ambas lineas = forma leve (sin voto).
+  //   Severidad: fuerte (algun indicio fuerte) 1.0; si no, segun N:
+  //   N <= 3 -> 0.8, N 4-5 -> 0.6, N 6-7 -> 0.4, no concluyente -> 0.3.
+  //   Empate de votos: deutan, por ser el tipo mas frecuente (se avisa en la nota).
+  // Tritan no se evalua: Ishihara no lo detecta.
+  window.scoreIshihara = function (answers, opts) {
+    opts = opts || {};
     const P = window.ISHIHARA_PLATES;
-    const norm = answers.map(function (a) { return String(a == null ? '' : a).trim().toLowerCase(); });
-    let E = 0; // errores de tamizaje en laminas 2-10
-    for (let i = 1; i <= 8; i++) {
+    const a = answers.map(function (x) { return String(x == null ? '' : x).trim().toLowerCase(); });
+
+    // Etapa 1.
+    const controlOK = a[0] === '12';
+
+    // Etapa 2.
+    const readOK = [];
+    for (let i = 0; i <= 10; i++) {
       const pl = P[i];
-      const a = norm[i];
-      if (pl.rev) { if (a === '2') E++; }
-      else if (a !== pl.normal) E++;
+      let ok;
+      if (pl.kind === 'trace') ok = a[i] === '0';
+      else if (pl.rev) ok = !(a[i] === '2' && a[7] !== P[7].normal);
+      else ok = a[i] === pl.normal;
+      readOK.push(ok);
     }
-    // Lamina 10 (indice 9)
-    if (norm[9] !== P[9].normal) E++;
+    const N = readOK.filter(Boolean).length;
+    const screening = N >= 10 ? 'normal' : (N <= 7 ? 'deficiente' : 'no concluyente');
 
-    let protan = 0, deutan = 0, mild = 0;
-    const a12 = norm[11], a13 = norm[12];
-    if (a12 === P[11].protan) protan += 2; else if (a12 === P[11].deutan) deutan += 2;
-    else if (a12 === P[11].normal) mild++; else if (a12 !== '' && a12 !== 'noveo') E += 0;
-    if (a13 === P[12].protan) protan += 2; else if (a13 === P[12].deutan) deutan += 2;
-    else if (a13 === P[12].normal) mild++;
-    const t11 = norm[10], t14 = norm[13];
-    if (t14 === '1') protan += 2; else if (t14 === '2') deutan += 2;
-    else if (t14 === '3') { protan++; deutan++; }
-    if (t11 === '2') E++;
+    // Etapa 3.
+    let protan = 0, deutan = 0;
+    const strong = [];
+    if (a[11] === P[11].protan) { protan += 2; strong.push('12'); }
+    else if (a[11] === P[11].deutan) { deutan += 2; strong.push('12'); }
+    if (a[12] === P[12].protan) { protan += 2; strong.push('13'); }
+    else if (a[12] === P[12].deutan) { deutan += 2; strong.push('13'); }
+    if (a[13] === '1') { protan += 2; strong.push('14'); }
+    else if (a[13] === '2') { deutan += 2; strong.push('14'); }
 
-    const controlOK = norm[0] === '12';
-    let type = 0, severity = 0, label = '';
-    if (E <= 1) {
-      type = 0; severity = 0;
-      label = 'Vision cromatica normal en este test';
+    let type = 0, severity = 0, label;
+    const tie = protan === deutan;
+    if (screening === 'normal') {
+      label = 'Visión cromática normal en este test';
     } else {
-      if (protan === deutan) type = (t14 === '1') ? 1 : 2; // empate: trazo manda, si no deutan por prevalencia
-      else type = protan > deutan ? 1 : 2;
-      const strongDigits = (a12 === P[11].protan || a12 === P[11].deutan || a13 === P[12].protan || a13 === P[12].deutan);
-      if (strongDigits || E >= 7) severity = 1.0;
-      else if (E >= 5) severity = 0.8;
-      else if (E >= 3) severity = 0.6;
-      else severity = 0.3;
-      label = (type === 1 ? 'Protan' : 'Deutan') + (severity >= 0.8 ? ' fuerte' : severity >= 0.5 ? ' media' : ' leve') + ' (aproximado)';
+      type = tie ? 2 : (protan > deutan ? 1 : 2);
+      if (strong.length) severity = 1.0;
+      else if (screening === 'no concluyente') severity = 0.3;
+      else if (N <= 3) severity = 0.8;
+      else if (N <= 5) severity = 0.6;
+      else severity = 0.4;
+      const level = severity >= 0.8 ? 'fuerte' : severity >= 0.5 ? 'media' : 'leve';
+      label = (screening === 'no concluyente' ? 'No concluyente · posible ' : '') +
+        (type === 1 ? 'Protan ' : 'Deutan ') + level + ' (aproximado)';
     }
+
     const names = ['Normal', 'Protan (rojo)', 'Deutan (verde)', 'Tritan (azul)'];
+    const unreliable = !controlOK;
     return {
       type: type, severity: severity, label: label,
-      errors: E, controlOK: controlOK, mild: mild,
       typeName: names[type],
-      detail: 'Aciertos de tamizaje: ' + (9 - Math.min(E, 9)) + '/9. Votos protan ' + protan + ', deutan ' + deutan + '.',
-      note: 'Aproximacion educativa, no diagnostico. Ishihara no evalua tritan. ' +
-        (!controlOK ? 'Control inicial distinto de 12: repite el test con calma. ' : '') +
-        (type !== 0 && protan === deutan && t14 !== '1' ? 'Tipo por prevalencia (deutan es mas comun). ' : '')
+      controlOK: controlOK, unreliable: unreliable,
+      screening: screening, readNormal: N, readOK: readOK,
+      votes: { protan: protan, deutan: deutan }, strong: strong,
+      errors: 11 - N,
+      detail: 'Etapa 1 control: ' + (controlOK ? 'correcto' : 'fallido') +
+        '. Etapa 2 tamizaje: ' + N + '/11 láminas leídas como normal (' + screening + ').' +
+        (screening === 'normal' ? '' : ' Etapa 3 tipo: votos protan ' + protan + ', deutan ' + deutan +
+          (strong.length ? ', indicios fuertes en lámina ' + strong.join(', ') : ', sin indicios fuertes') + '.'),
+      note: 'Aproximación educativa, no diagnóstico. Ishihara no evalúa tritan. ' +
+        (!controlOK ? 'La lámina 1 (12) no se leyó bien: el resultado es poco fiable, repite el test con calma. ' : '') +
+        (screening === 'no concluyente' ? 'Con 8 o 9 láminas normales Kanehara recomienda otras pruebas. ' : '') +
+        (type !== 0 && tie ? 'Tipo por prevalencia (deutan es más común). ' : '')
     };
   };
 })();
@@ -451,7 +499,8 @@
     const key = plate.id + ':' + size;
     if (cache[key]) return cache[key];
     if (typeof window.ishihara !== 'function') return null;
-    const pal = plate.rev ? LIB_PAL.rev : LIB_PAL.normal;
+    const CAL = window.ISHIHARA_PALETTES;
+    const pal = plate.rev ? LIB_PAL.rev : (CAL ? { fig: CAL.num.fig, bg: CAL.num.bg } : LIB_PAL.normal);
     const digits = plate.fig.length;
     const packer = await window.ishihara({
       text: plate.fig,
@@ -487,7 +536,8 @@
     ctx.fillRect(0, 0, W, W);
     ctx.save();
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = plate.rev ? LIB_PAL.rev.bg[0] : LIB_PAL.normal.bg[0];
+    const CAL = window.ISHIHARA_PALETTES;
+    ctx.fillStyle = plate.rev ? LIB_PAL.rev.bg[0] : (CAL ? CAL.num.bgBase : LIB_PAL.normal.bg[0]);
     ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
     // La libreria devuelve la region del texto con margen. Se ajusta al circulo.
     const side = r * 2;

@@ -1,19 +1,24 @@
 #version 300 es
 // daltonizador.frag
 // Simulacion de daltonismo en tiempo real. WebGL2 + GLSL ES 3.00.
-// Modelo: Machado, Oliveira, Fernandes 2009 (mismo que Chrome DevTools).
-// La matriz uSim (tipo + severidad, interpolada) se calcula en JS (machado.js)
-// y llega como un solo uniform: el shader no tiene ramas por tipo ni modo.
-// Pipeline: sRGB -> lineal (exacta) -> uSim * rgb -> clamp -> sRGB (exacta).
+// Modelos: protan y deutan con Machado, Oliveira, Fernandes 2009 (mismo que
+// Chrome DevTools); tritan con Brettel, Vienot, Mollon 1997 (dos semiplanos).
+// Las matrices (tipo + severidad) se calculan en JS (machado.js). Para Machado
+// uSim = uSim2, asi el plano no cambia nada. Sin ramas: el semiplano se elige
+// con step() y mix().
+// Pipeline: sRGB -> lineal (exacta) -> matriz -> clamp -> sRGB (exacta).
 // Referencias:
 // - NotebookLM Visual: Shading color ops, srgb2lin exacto.
 // - Machado, Oliveira, Fernandes 2009, IEEE TVCG 15(6).
+// - Brettel, Vienot, Mollon 1997, JOSA A 14(10). Matrices de libDaltonLens (dominio publico).
 // - IEC 61966-2-1 (sRGB).
 precision highp float;
 
 in vec2 vTexCoord;
 uniform sampler2D uTexture;
-uniform mat3 uSim;      // RGB lineal -> RGB lineal simulado. Identidad = sin filtro.
+uniform mat3 uSim;      // RGB lineal -> simulado. Semiplano dot(rgb, uPlane) >= 0.
+uniform mat3 uSim2;     // Semiplano dot(rgb, uPlane) < 0 (solo distinto en Brettel).
+uniform vec3 uPlane;    // Normal del plano de separacion de Brettel en RGB lineal.
 out vec4 outColor;
 
 // sRGB a lineal. Funcion piecewise exacta. No usa gamma 2.2.
@@ -30,6 +35,7 @@ vec3 lin2srgb(vec3 c) {
 void main() {
   vec4 src = texture(uTexture, vTexCoord);
   vec3 lin = srgb2lin(src.rgb);
-  vec3 sim = clamp(uSim * lin, 0.0, 1.0);
+  float side = step(0.0, dot(lin, uPlane));
+  vec3 sim = clamp(mix(uSim2 * lin, uSim * lin, side), 0.0, 1.0);
   outColor = vec4(lin2srgb(sim), 1.0);
 }
