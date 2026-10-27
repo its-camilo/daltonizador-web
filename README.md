@@ -1,4 +1,4 @@
-# Daltonizador GLSL — WebGL2 Fase A
+# Daltonizador GLSL — WebGL2
 
 Filtro de daltonismo en tiempo real. WebGL2 + GLSL ES 3.00 + JavaScript puro. Sin frameworks. Sin build. 100% local.
 
@@ -48,19 +48,13 @@ Controles:
 - Botón ON/OFF + tecla `F` local. Sin tecla global del SO.
 - Test Ishihara con 14 láminas: dibuja con mouse o dedo el número que ves (se reconoce por plantillas) o el trazo que sigues en láminas 11 y 14. Sin omitir en primer uso. Al final arma tu preset (tipo + intensidad) y lo guarda en `localStorage`.
 - Botón de shaders: popup con el vertex y fragment GLSL en uso, con copiar.
-- Modo único: simulación (Machado 2009). La corrección pasa al ítem 3 del trabajo a futuro.
+- Modo único: simulación (Machado 2009).
 - Preset = tipo de visión: Visión normal, Protan, Deutan, Tritan. Sin opción "Elige preset".
 - Intensidad 0.0 a 1.0 independiente del preset: con intensidad 0 el preset se mantiene (la imagen se ve sin filtro). Con Visión normal el slider se desactiva.
 - Al terminar el test, "Usar mi resultado" deja Visión normal o Protan/Deutan/Tritan con la intensidad calculada.
 - HUD con fps y tiempo de GPU por frame (si el navegador expone `EXT_disjoint_timer_query_webgl2`).
-- Cargar imagen PNG/JPEG local. Cargar video local para Fase B.
+- Cargar imagen PNG/JPEG y video locales.
 - Perfil se guarda en `localStorage` con esquema versionado (`v: 2`); datos corruptos se descartan.
-
-## Fases
-
-- Fase A: imagen por código. Lista.
-- Fase B: video local y cámara. Base lista con `fileVideo`.
-- Fase C: juego web simple en canvas propio. Usa mismo `.frag` sin copiar lógica.
 
 ## Pipeline
 
@@ -102,4 +96,3 @@ Fuente: Ishihara Instructions, Concise Edition 14 plates (https://web.stanford.e
 ## Notas de modelo (reporte)
 - Todo el pipeline opera en sRGB lineal D65. Machado ya está definido en RGB lineal, así que no requiere adaptación cromática von Kries aparte; Brettel y Viénot usan el LMS de Smith-Pokorny 75 sobre sRGB (incluido en las matrices precalculadas).
 - La simulación no preserva Y a propósito: un protan percibe los rojos más oscuros. Por eso el contraste WCAG cambia según el tipo (`tools/check-contrast.js`).
-- La corrección (daltonización) y el ping-pong con dos FBO quedan fuera: decisión del proyecto, solo simulación.
